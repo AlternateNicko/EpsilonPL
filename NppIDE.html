@@ -121,6 +121,47 @@
       border-color: var(--accent);
     }
 
+    .btn.toggle-on {
+      border-color: rgba(158, 206, 106, 0.75);
+      background: rgba(158, 206, 106, 0.12);
+    }
+
+    .autocomplete {
+      position: absolute;
+      display: none;
+      min-width: 220px;
+      max-width: 360px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 12px 30px var(--shadow);
+      z-index: 4;
+      overflow: hidden;
+    }
+
+    .autocomplete.show {
+      display: block;
+    }
+
+    .autocomplete-item {
+      padding: 8px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .autocomplete-item:last-child {
+      border-bottom: 0;
+    }
+
+    .autocomplete-item.active,
+    .autocomplete-item:hover {
+      background: rgba(122,162,247,0.18);
+    }
+
     .tree {
       padding: 12px;
       overflow: auto;
@@ -358,10 +399,12 @@
           <input id="projectName" type="text" value="My Study Project" />
         </div>
         <div class="sidebar-actions">
+          <button class="btn" id="openFolderBtn">Open Folder</button>
           <button class="btn" id="newFolderBtn">New Folder</button>
           <button class="btn" id="newFileBtn">New File</button>
           <button class="btn" id="saveBtn">Save</button>
           <button class="btn" id="loadBtn">Load</button>
+          <button class="btn" id="autoSaveBtn">Real-time Save: On</button>
         </div>
       </div>
       <div class="tree" id="tree"></div>
@@ -383,6 +426,7 @@
           <div class="block-guides" id="blockGuides"></div>
           <pre class="highlight" id="highlight"></pre>
           <textarea class="editor" id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+          <div class="autocomplete" id="autocomplete"></div>
         </div>
       </div>
 
@@ -393,89 +437,55 @@
     </main>
   </div>
 
+  
   <script>
-    const STORAGE_KEY = "v0.9.0-nppide";
+    const STORAGE_KEY = 'v0.9.0-nppide';
+    const AUTO_SAVE_KEY = 'v0.9.0-nppide-autosave';
     const INDENT_SIZE = 4;
-
-
     const KEYWORDS = [
-      "if", "else", "inherit", "break", "continue",
-      "for", "while", "return", "func", "class", "call", "load",
-      "attempt", "catch", "delete", "throw", "import", "from", "open",
-      "and", "or", "not", "in", "as", "is", "sync", "desync",
-      "True", "False", "None", "private", "public", "get",
+      'if', 'else', 'inherit', 'break', 'continue',
+      'for', 'while', 'return', 'func', 'class', 'call', 'load',
+      'attempt', 'catch', 'delete', 'throw', 'import', 'from', 'open',
+      'and', 'or', 'not', 'in', 'as', 'is', 'sync', 'desync',
+      'True', 'False', 'None', 'private', 'public', 'get'
+    ];
+    const BUILTINS = [
+      'num', 'input', 'eval', 'exec', 'length', 'sort', 'min', 'mean', 'max',
+      'median', 'mode', 'sum', 'range', 'call', 'reverse', 'type', 'format',
+      'zip', 'dict', 'map'
     ];
 
-    const BUILTINS = ["num", "input", "eval", "exec", "length", "sort", "min", "mean", "max", "median", "mode", "sum", "range", "call", "reverse", "type", "format", "zip", "dict", "map"];
-
-    const state = loadState() || createDefaultState();
-
-    const els = {
-      menuBtn: document.getElementById("menuBtn"),
-      overlay: document.getElementById("overlay"),
-      sidebar: document.getElementById("sidebar"),
-      tree: document.getElementById("tree"),
-      projectName: document.getElementById("projectName"),
-      newFolderBtn: document.getElementById("newFolderBtn"),
-      newFileBtn: document.getElementById("newFileBtn"),
-      saveBtn: document.getElementById("saveBtn"),
-      loadBtn: document.getElementById("loadBtn"),
-      renameBtn: document.getElementById("renameBtn"),
-      deleteBtn: document.getElementById("deleteBtn"),
-      editor: document.getElementById("editor"),
-      highlight: document.getElementById("highlight"),
-      blockGuides: document.getElementById("blockGuides"),
-      lineNumbers: document.getElementById("lineNumbers"),
-      currentFileLabel: document.getElementById("currentFileLabel"),
-      saveState: document.getElementById("saveState"),
-      infoLeft: document.getElementById("infoLeft"),
-      infoRight: document.getElementById("infoRight")
-    };
-
-    let activeFileId = state.activeFileId || null;
-    let activeFolderId = state.activeFolderId || state.project.rootFolders[0]?.id || null;
-    let selectedNodeId = activeFileId || activeFolderId;
-    let metrics = {
-      charWidth: 8,
-      lineHeight: 24,
-      paddingLeft: 18,
-      paddingTop: 18
-    };
-
-    els.projectName.value = state.project.name;
-
-    function uid() {
-      return "id_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
-    }
-
-    function createDefaultState() {
-      const mainFileId = uid();
-      const save_pathFolderId = uid();
-
+    const defaultState = () => {
+      const folderId = uid();
+      const fileId = uid();
       return {
         project: {
-          name: "My Project",
+          name: 'My Project',
           rootFolders: [
             {
-              id: save_pathFolderId,
-              type: "folder",
-              name: "save_path",
+              id: folderId,
+              type: 'folder',
+              name: 'save_path',
               open: true,
               folders: [],
               files: [
                 {
-                  id: mainFileId,
-                  type: "file",
-                  name: "main.npp",
-                  content: `// put your program here`
+                  id: fileId,
+                  type: 'file',
+                  name: 'main.npp',
+                  content: '// put your program here'
                 }
               ]
             }
           ]
         },
-        activeFileId: mainFileId,
-        activeFolderId: save_pathFolderId
+        activeFileId: fileId,
+        activeFolderId: folderId
       };
+    };
+
+    function uid() {
+      return `id_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
     }
 
     function loadState() {
@@ -487,67 +497,117 @@
       }
     }
 
+    const state = loadState() || defaultState();
+    let activeFileId = state.activeFileId || null;
+    let activeFolderId = state.activeFolderId || state.project.rootFolders[0]?.id || null;
+    let selectedNodeId = activeFileId || activeFolderId;
+
+    let projectFolderHandle = null;
+    const fileHandleById = new Map();
+    let realTimeSaveEnabled = JSON.parse(localStorage.getItem(AUTO_SAVE_KEY) || 'true');
+    let saveTimer = null;
+
+    let autocomplete = {
+      visible: false,
+      items: [],
+      index: 0,
+      start: 0,
+      end: 0
+    };
+
+    const els = {
+      menuBtn: document.getElementById('menuBtn'),
+      overlay: document.getElementById('overlay'),
+      sidebar: document.getElementById('sidebar'),
+      tree: document.getElementById('tree'),
+      projectName: document.getElementById('projectName'),
+      openFolderBtn: document.getElementById('openFolderBtn'),
+      newFolderBtn: document.getElementById('newFolderBtn'),
+      newFileBtn: document.getElementById('newFileBtn'),
+      saveBtn: document.getElementById('saveBtn'),
+      loadBtn: document.getElementById('loadBtn'),
+      autoSaveBtn: document.getElementById('autoSaveBtn'),
+      renameBtn: document.getElementById('renameBtn'),
+      deleteBtn: document.getElementById('deleteBtn'),
+      editor: document.getElementById('editor'),
+      highlight: document.getElementById('highlight'),
+      blockGuides: document.getElementById('blockGuides'),
+      lineNumbers: document.getElementById('lineNumbers'),
+      autocomplete: document.getElementById('autocomplete'),
+      currentFileLabel: document.getElementById('currentFileLabel'),
+      saveState: document.getElementById('saveState'),
+      infoLeft: document.getElementById('infoLeft'),
+      infoRight: document.getElementById('infoRight')
+    };
+
+    const metrics = { charWidth: 8, lineHeight: 24, paddingLeft: 18, paddingTop: 18 };
+
+    els.projectName.value = state.project.name || 'Untitled Project';
+
     function persistState() {
       state.activeFileId = activeFileId;
       state.activeFolderId = activeFolderId;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      els.saveState.textContent = "Saved locally";
-      setTimeout(() => {
-        els.saveState.textContent = "Auto-saved";
+      els.saveState.textContent = realTimeSaveEnabled ? 'Auto-saved' : 'Saved locally';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        if (!realTimeSaveEnabled) els.saveState.textContent = 'Saved locally';
       }, 700);
     }
 
+    function setAutoSaveEnabled(enabled) {
+      realTimeSaveEnabled = Boolean(enabled);
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(realTimeSaveEnabled));
+      els.autoSaveBtn.classList.toggle('toggle-on', realTimeSaveEnabled);
+      els.autoSaveBtn.textContent = `Real-time Save: ${realTimeSaveEnabled ? 'On' : 'Off'}`;
+      els.saveState.textContent = realTimeSaveEnabled ? 'Auto-save enabled' : 'Saved locally';
+    }
+
     function escapeHtml(str) {
-      return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
     }
 
     function escapeRegExp(s) {
-      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    function buildTokenRegex() {
-      const kw = KEYWORDS.map(escapeRegExp).join("|");
-      const bi = BUILTINS.map(escapeRegExp).join("|");
-      return new RegExp(
-        [
-          "(\\/\\/.*?$)",
-          "(\\/\\*[\\s\\S]*?\\*\\/)",
-          `("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'|\\\`([^\\\`\\\\]|\\\\.)*\\\`)`,
-          `\\b(?:${kw})\\b`,
-          `\\b(?:${bi})\\b`,
-          "\\b\\d+(?:\\.\\d+)?\\b",
-          "[+\\-*/%=!<>&|^~?:]+",
-          "[{}()[\\],.;]"
-        ].join("|"),
-        "gm"
-      );
-    }
-
-    const TOKEN_RE = buildTokenRegex();
+    const TOKEN_RE = new RegExp([
+      '(\\/\\/.*?$)',
+      '(\\/\\*[\\s\\S]*?\\*\\/)',
+      `("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'|\\\`([^\\\`\\\\]|\\\\.)*\\\`)`,
+      `\\b(?:${KEYWORDS.map(escapeRegExp).join('|')})\\b`,
+      `\\b(?:${BUILTINS.map(escapeRegExp).join('|')})\\b`,
+      '\\b\\d+(?:\\.\\d+)?\\b',
+      '[+\\-*/%=!<>&|^~?:]+',
+      '[{}()[\\],.;]'
+    ].join('|'), 'gm');
 
     function highlightCode(code) {
-      return escapeHtml(code).replace(TOKEN_RE, (match) => {
-        if (match.startsWith("//")) return `<span class="token-comment">${escapeHtml(match)}</span>`;
-        if (match.startsWith("/*")) return `<span class="token-comment">${escapeHtml(match)}</span>`;
-        if (/^["'`]/.test(match)) return `<span class="token-string">${escapeHtml(match)}</span>`;
-        if (KEYWORDS.includes(match)) return `<span class="token-keyword">${match}</span>`;
-        if (BUILTINS.includes(match)) return `<span class="token-builtin">${match}</span>`;
-        if (/^\d/.test(match)) return `<span class="token-number">${match}</span>`;
-        if (/^[+\-*/%=!<>&|^~?:]+$/.test(match)) return `<span class="token-operator">${match}</span>`;
-        if (/^[{}()[\],.;]$/.test(match)) return `<span class="token-punc">${match}</span>`;
-        return match;
+      return escapeHtml(code).replace(TOKEN_RE, (m) => {
+        if (m.startsWith('//') || m.startsWith('/*')) return `<span class="token-comment">${escapeHtml(m)}</span>`;
+        if (/^["'`]/.test(m)) return `<span class="token-string">${escapeHtml(m)}</span>`;
+        if (KEYWORDS.includes(m)) return `<span class="token-keyword">${m}</span>`;
+        if (BUILTINS.includes(m)) return `<span class="token-builtin">${m}</span>`;
+        if (/^\d/.test(m)) return `<span class="token-number">${m}</span>`;
+        if (/^[+\-*/%=!<>&|^~?:]+$/.test(m)) return `<span class="token-operator">${m}</span>`;
+        if (/^[{}()[\],.;]$/.test(m)) return `<span class="token-punc">${m}</span>`;
+        return m;
       });
+    }
+
+    function createDefaultProject() {
+      return defaultState();
     }
 
     function findFolderById(id, folders = state.project.rootFolders) {
       for (const folder of folders) {
         if (folder.id === id) return folder;
-        const foundInChildFolder = findFolderById(id, folder.folders || []);
-        if (foundInChildFolder) return foundInChildFolder;
+        const found = findFolderById(id, folder.folders || []);
+        if (found) return found;
       }
       return null;
     }
@@ -557,8 +617,8 @@
         for (const file of folder.files || []) {
           if (file.id === id) return file;
         }
-        const foundInChildFolder = findFileById(id, folder.folders || []);
-        if (foundInChildFolder) return foundInChildFolder;
+        const found = findFileById(id, folder.folders || []);
+        if (found) return found;
       }
       return null;
     }
@@ -577,8 +637,8 @@
     function leadingIndentColumns(line) {
       let cols = 0;
       for (const ch of line) {
-        if (ch === " ") cols += 1;
-        else if (ch === "\t") cols += INDENT_SIZE - (cols % INDENT_SIZE);
+        if (ch === ' ') cols += 1;
+        else if (ch === '\t') cols += INDENT_SIZE - (cols % INDENT_SIZE);
         else break;
       }
       return cols;
@@ -590,28 +650,27 @@
       metrics.paddingTop = parseFloat(cs.paddingTop) || 18;
       const lineHeight = parseFloat(cs.lineHeight);
       if (!Number.isNaN(lineHeight)) metrics.lineHeight = lineHeight;
-
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
       ctx.font = cs.font;
-      metrics.charWidth = ctx.measureText("0").width || 8;
+      metrics.charWidth = ctx.measureText('0').width || 8;
     }
 
     function analyzeBlockGuides(text) {
-      const lines = text.split("\n");
-      const outsideLines = [];
+      const lines = text.split('\n');
+      const safeLines = [];
       let inString = null;
       let escape = false;
       let inBlockComment = false;
 
       for (const line of lines) {
-        let out = "";
+        let out = '';
         for (let i = 0; i < line.length; i++) {
           const c = line[i];
           const n = line[i + 1];
 
           if (inBlockComment) {
-            if (c === "*" && n === "/") {
+            if (c === '*' && n === '/') {
               inBlockComment = false;
               i++;
             }
@@ -623,7 +682,7 @@
               escape = false;
               continue;
             }
-            if (c === "\\") {
+            if (c === '\\') {
               escape = true;
               continue;
             }
@@ -634,41 +693,33 @@
             continue;
           }
 
-          if (c === "/" && n === "/") break;
-          if (c === "/" && n === "*") {
+          if (c === '/' && n === '/') break;
+          if (c === '/' && n === '*') {
             inBlockComment = true;
             i++;
             continue;
           }
-
-          if (c === '"' || c === "'" || c === "`") {
+          if (c === '"' || c === "'" || c === '`') {
             inString = c;
             continue;
           }
-
           out += c;
         }
-        outsideLines.push(out);
+        safeLines.push(out);
       }
 
       const guides = [];
       const stack = [];
-
-      for (let lineIndex = 0; lineIndex < outsideLines.length; lineIndex++) {
-        const line = outsideLines[lineIndex];
+      for (let lineIndex = 0; lineIndex < safeLines.length; lineIndex++) {
+        const line = safeLines[lineIndex];
         const trimmed = line.trimEnd();
-        const openIdx = trimmed.lastIndexOf("{");
-        const qualifiesOpen =
-          openIdx !== -1 &&
-          trimmed.slice(openIdx + 1).trim() === "" &&
-          trimmed.lastIndexOf("}") < openIdx;
-
+        const openIdx = trimmed.lastIndexOf('{');
+        const qualifiesOpen = openIdx !== -1 && trimmed.slice(openIdx + 1).trim() === '' && trimmed.lastIndexOf('}') < openIdx;
         for (let col = 0; col < line.length; col++) {
           const ch = line[col];
-
-          if (ch === "{" && qualifiesOpen && col === openIdx) {
+          if (ch === '{' && qualifiesOpen && col === openIdx) {
             stack.push({ line: lineIndex });
-          } else if (ch === "}" && stack.length) {
+          } else if (ch === '}' && stack.length) {
             const open = stack.pop();
             guides.push({ start: open.line, end: lineIndex });
           }
@@ -684,47 +735,39 @@
       const frag = document.createDocumentFragment();
 
       for (const guide of guides) {
-        const line = findOpeningLineText(els.editor.value, guide.start);
+        const line = (els.editor.value.split('\n')[guide.start] || '');
         const xCols = leadingIndentColumns(line);
         const left = metrics.paddingLeft + xCols * metrics.charWidth - els.editor.scrollLeft;
         const top = metrics.paddingTop + guide.start * metrics.lineHeight - els.editor.scrollTop;
         const height = Math.max(metrics.lineHeight, (guide.end - guide.start + 1) * metrics.lineHeight);
-
-        const div = document.createElement("div");
-        div.className = "guide-line";
+        const div = document.createElement('div');
+        div.className = 'guide-line';
         div.style.left = `${left}px`;
         div.style.top = `${top}px`;
         div.style.height = `${height}px`;
         frag.appendChild(div);
       }
 
-      els.blockGuides.innerHTML = "";
+      els.blockGuides.innerHTML = '';
       els.blockGuides.appendChild(frag);
-    }
-
-    function findOpeningLineText(code, lineNumber) {
-      const lines = code.split("\n");
-      return lines[lineNumber] || "";
     }
 
     function updateStatus() {
       const file = activeFileId ? findFileById(activeFileId) : null;
       const text = els.editor.value;
-      const lines = text ? text.split("\n").length : 1;
+      const lines = text ? text.split('\n').length : 1;
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      els.currentFileLabel.textContent = file ? `Editing: ${file.name}` : "No file open";
-      els.infoLeft.textContent = `${lines} line${lines === 1 ? "" : "s"} • ${words} word${words === 1 ? "" : "s"}`;
+      els.currentFileLabel.textContent = file ? `Editing: ${file.name}` : 'No file open';
+      els.infoLeft.textContent = `${lines} line${lines === 1 ? '' : 's'} • ${words} word${words === 1 ? '' : 's'}`;
     }
 
     function updateEditorView() {
       const value = els.editor.value;
-      els.highlight.innerHTML = highlightCode(value) + "<br>";
-      els.lineNumbers.textContent = Array.from(
-        { length: Math.max(1, value.split("\n").length) },
-        (_, i) => i + 1
-      ).join("\n");
+      els.highlight.innerHTML = highlightCode(value) + '<br>';
+      els.lineNumbers.textContent = Array.from({ length: Math.max(1, value.split('\n').length) }, (_, i) => i + 1).join('\n');
       updateStatus();
       renderBlockGuides();
+      renderAutocomplete();
     }
 
     function syncScroll() {
@@ -732,34 +775,118 @@
       els.highlight.scrollLeft = els.editor.scrollLeft;
       els.lineNumbers.scrollTop = els.editor.scrollTop;
       renderBlockGuides();
+      renderAutocomplete();
+    }
+
+    function getAutocompleteCandidates() {
+      const words = new Set([...KEYWORDS, ...BUILTINS, ...(els.editor.value.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [])]);
+      const addNames = (folders) => {
+        for (const folder of folders) {
+          words.add(folder.name);
+          for (const file of folder.files || []) {
+            words.add(file.name);
+            words.add(file.name.replace(/\.[^.]+$/, ''));
+          }
+          addNames(folder.folders || []);
+        }
+      };
+      addNames(state.project.rootFolders);
+      return [...words];
+    }
+
+    function hideAutocomplete() {
+      autocomplete.visible = false;
+      els.autocomplete.classList.remove('show');
+      els.autocomplete.innerHTML = '';
+    }
+
+    function renderAutocomplete() {
+      if (!autocomplete.visible || !autocomplete.items.length) {
+        hideAutocomplete();
+        return;
+      }
+
+      const text = els.editor.value;
+      const start = els.editor.selectionStart || 0;
+      const before = text.slice(0, start);
+      const lines = before.split('\n');
+      const lineIndex = lines.length - 1;
+      const col = lines[lines.length - 1].length;
+      const x = metrics.paddingLeft + col * metrics.charWidth - els.editor.scrollLeft;
+      const y = metrics.paddingTop + lineIndex * metrics.lineHeight - els.editor.scrollTop + metrics.lineHeight;
+
+      els.autocomplete.style.left = `${Math.max(8, Math.min(x, els.editor.clientWidth - 240))}px`;
+      els.autocomplete.style.top = `${Math.max(8, y)}px`;
+      els.autocomplete.innerHTML = autocomplete.items.map((item, index) => (
+        `<div class="autocomplete-item ${index === autocomplete.index ? 'active' : ''}" data-index="${index}">${escapeHtml(item)}</div>`
+      )).join('');
+      els.autocomplete.classList.add('show');
+    }
+
+    function updateAutocomplete() {
+      const pos = els.editor.selectionStart || 0;
+      const match = els.editor.value.slice(0, pos).match(/[A-Za-z_][A-Za-z0-9_]*$/);
+      if (!match) return hideAutocomplete();
+
+      const prefix = match[0];
+      const items = getAutocompleteCandidates()
+        .filter(item => item.toLowerCase().startsWith(prefix.toLowerCase()) && item.toLowerCase() !== prefix.toLowerCase())
+        .sort((a, b) => a.length - b.length || a.localeCompare(b))
+        .slice(0, 8);
+
+      if (!items.length) return hideAutocomplete();
+
+      autocomplete = {
+        visible: true,
+        items,
+        index: 0,
+        start: pos - prefix.length,
+        end: pos
+      };
+      renderAutocomplete();
+    }
+
+    function acceptAutocomplete(index = autocomplete.index) {
+      if (!autocomplete.visible || !autocomplete.items.length) return false;
+      const choice = autocomplete.items[index];
+      if (!choice) return false;
+      const before = els.editor.value.slice(0, autocomplete.start);
+      const after = els.editor.value.slice(autocomplete.end);
+      els.editor.value = before + choice + after;
+      const caret = before.length + choice.length;
+      els.editor.selectionStart = els.editor.selectionEnd = caret;
+      updateEditorView();
+      hideAutocomplete();
+      saveCurrentFile();
+      return true;
     }
 
     function renderTree() {
       const renderFolder = (folder) => {
-        const isActive = selectedNodeId === folder.id ? "active" : "";
-        const openClass = folder.open ? "open" : "";
-        const childrenHtml = [
-          ...(folder.folders || []).map(f => renderFolder(f)),
-          ...(folder.files || []).map(file => renderFile(file))
-        ].join("");
+        const active = selectedNodeId === folder.id ? 'active' : '';
+        const openClass = folder.open ? 'open' : '';
+        const children = [
+          ...(folder.folders || []).map(renderFolder),
+          ...(folder.files || []).map(renderFile)
+        ].join('');
 
         return `
           <div class="tree-item ${openClass}" data-id="${folder.id}" data-type="folder">
-            <div class="tree-row folder ${isActive}" data-action="toggle-folder" data-id="${folder.id}">
-              <span class="arrow">${folder.open ? "▾" : "▸"}</span>
+            <div class="tree-row folder ${active}" data-action="toggle-folder" data-id="${folder.id}">
+              <span class="arrow">${folder.open ? '▾' : '▸'}</span>
               <span class="icon">📁</span>
               <span class="name">${escapeHtml(folder.name)}</span>
             </div>
-            <div class="children">${childrenHtml}</div>
+            <div class="children">${children}</div>
           </div>
         `;
       };
 
       const renderFile = (file) => {
-        const isActive = selectedNodeId === file.id ? "active" : "";
+        const active = selectedNodeId === file.id ? 'active' : '';
         return `
           <div class="tree-item" data-id="${file.id}" data-type="file">
-            <div class="tree-row file ${isActive}" data-action="open-file" data-id="${file.id}">
+            <div class="tree-row file ${active}" data-action="open-file" data-id="${file.id}">
               <span class="arrow">•</span>
               <span class="icon">📄</span>
               <span class="name">${escapeHtml(file.name)}</span>
@@ -768,7 +895,7 @@
         `;
       };
 
-      els.tree.innerHTML = state.project.rootFolders.map(folder => renderFolder(folder)).join("");
+      els.tree.innerHTML = state.project.rootFolders.map(renderFolder).join('');
     }
 
     function openFile(fileId) {
@@ -776,93 +903,95 @@
       if (!file) return;
       activeFileId = fileId;
       selectedNodeId = fileId;
-      els.editor.value = file.content || "";
+      els.editor.value = file.content || '';
       updateEditorView();
       renderTree();
+      hideAutocomplete();
     }
 
-    function saveCurrentFile() {
+    async function writeFileHandleContent(fileId, content) {
+      const handle = fileHandleById.get(fileId);
+      if (!handle || !handle.createWritable) return false;
+      try {
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return true;
+      } catch (error) {
+        console.warn('Could not write to file handle:', error);
+        return false;
+      }
+    }
+
+    async function saveCurrentFile() {
       if (!activeFileId) return;
       const file = findFileById(activeFileId);
       if (!file) return;
       file.content = els.editor.value;
+      if (realTimeSaveEnabled) await writeFileHandleContent(activeFileId, file.content);
       persistState();
       renderTree();
       updateStatus();
     }
 
+    function scheduleAutoSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        saveCurrentFile();
+      }, 220);
+    }
+
     function createFolder() {
-      const name = prompt("Folder name:", "new-folder");
+      const name = prompt('Folder name:', 'new-folder');
       if (!name) return;
-
-      const newFolder = {
-        id: uid(),
-        type: "folder",
-        name,
-        open: true,
-        folders: [],
-        files: []
-      };
-
-      const target = selectedNodeId && findFolderById(selectedNodeId)
+      const folder = { id: uid(), type: 'folder', name, open: true, folders: [], files: [] };
+      const parent = selectedNodeId && findFolderById(selectedNodeId)
         ? findFolderById(selectedNodeId)
         : activeFolderId && findFolderById(activeFolderId)
           ? findFolderById(activeFolderId)
           : state.project.rootFolders[0];
 
-      if (target) {
-        target.folders = target.folders || [];
-        target.folders.push(newFolder);
-        target.open = true;
-        activeFolderId = target.id;
+      if (parent) {
+        parent.folders = parent.folders || [];
+        parent.folders.push(folder);
+        parent.open = true;
+        activeFolderId = parent.id;
       } else {
-        state.project.rootFolders.push(newFolder);
+        state.project.rootFolders.push(folder);
       }
-
-      selectedNodeId = newFolder.id;
+      selectedNodeId = folder.id;
       persistState();
       renderTree();
     }
 
     function createFile() {
-      const name = prompt("File name:", "new-file.txt");
+      const name = prompt('File name:', 'new-file.txt');
       if (!name) return;
-
-      const newFile = {
-        id: uid(),
-        type: "file",
-        name,
-        content: ""
-      };
-
-      const target = selectedNodeId && findFolderById(selectedNodeId)
+      const file = { id: uid(), type: 'file', name, content: '' };
+      const parent = selectedNodeId && findFolderById(selectedNodeId)
         ? findFolderById(selectedNodeId)
         : activeFolderId && findFolderById(activeFolderId)
           ? findFolderById(activeFolderId)
           : state.project.rootFolders[0];
 
-      if (!target) {
-        alert("No folder found to place the file in.");
-        return;
-      }
-
-      target.files = target.files || [];
-      target.files.push(newFile);
-      target.open = true;
-      activeFolderId = target.id;
-      activeFileId = newFile.id;
-      selectedNodeId = newFile.id;
-      els.editor.value = "";
+      if (!parent) return alert('No folder found to place the file in.');
+      parent.files = parent.files || [];
+      parent.files.push(file);
+      parent.open = true;
+      activeFolderId = parent.id;
+      activeFileId = file.id;
+      selectedNodeId = file.id;
+      els.editor.value = '';
       updateEditorView();
       persistState();
       renderTree();
     }
 
     function renameActiveFile() {
-      if (!activeFileId) return alert("Open a file first.");
+      if (!activeFileId) return alert('Open a file first.');
       const file = findFileById(activeFileId);
       if (!file) return;
-      const newName = prompt("Rename file:", file.name);
+      const newName = prompt('Rename file:', file.name);
       if (!newName) return;
       file.name = newName;
       persistState();
@@ -871,66 +1000,167 @@
     }
 
     function deleteActiveFile() {
-      if (!activeFileId) return alert("Open a file first.");
+      if (!activeFileId) return alert('Open a file first.');
       const file = findFileById(activeFileId);
       if (!file) return;
-
       if (!confirm(`Delete "${file.name}"?`)) return;
-
       const parent = findParentOfFile(activeFileId);
       if (!parent) return;
-
       parent.files = (parent.files || []).filter(f => f.id !== activeFileId);
+      fileHandleById.delete(activeFileId);
       activeFileId = null;
       selectedNodeId = parent.id;
-      els.editor.value = "";
+      els.editor.value = '';
       updateEditorView();
       persistState();
       renderTree();
     }
 
+    function buildTreeFromEntries(entries, rootLabel) {
+      state.project.rootFolders = [];
+      fileHandleById.clear();
+      const folderMap = new Map();
+
+      const ensureFolder = (pathParts) => {
+        let currentList = state.project.rootFolders;
+        let pathKey = '';
+        let currentFolder = null;
+        for (const part of pathParts) {
+          pathKey = pathKey ? `${pathKey}/${part}` : part;
+          let next = folderMap.get(pathKey);
+          if (!next) {
+            next = { id: uid(), type: 'folder', name: part, open: true, folders: [], files: [] };
+            folderMap.set(pathKey, next);
+            currentList.push(next);
+          }
+          currentFolder = next;
+          currentList = next.folders;
+        }
+        return currentFolder;
+      };
+
+      for (const entry of entries) {
+        const parts = entry.relativePath.split('/').filter(Boolean);
+        const fileName = parts.pop();
+        const parent = ensureFolder(parts);
+        const file = { id: uid(), type: 'file', name: fileName, content: entry.content || '' };
+        if (parent) {
+          parent.files = parent.files || [];
+          parent.files.push(file);
+        } else {
+          const root = ensureFolder([rootLabel]);
+          root.files = root.files || [];
+          root.files.push(file);
+        }
+        if (entry.handle) fileHandleById.set(file.id, entry.handle);
+      }
+
+      if (!state.project.rootFolders.length) {
+        state.project.rootFolders.push({ id: uid(), type: 'folder', name: rootLabel || 'project', open: true, folders: [], files: [] });
+      }
+    }
+
+    async function readDirectoryHandle(dirHandle, basePath = '', entries = []) {
+      for await (const [name, handle] of dirHandle.entries()) {
+        const relativePath = basePath ? `${basePath}/${name}` : name;
+        if (handle.kind === 'file') {
+          const file = await handle.getFile();
+          entries.push({ relativePath, content: await file.text(), handle });
+        } else if (handle.kind === 'directory') {
+          await readDirectoryHandle(handle, relativePath, entries);
+        }
+      }
+      return entries;
+    }
+
+    async function openProjectFolderFromHandle(dirHandle) {
+      const entries = await readDirectoryHandle(dirHandle);
+      projectFolderHandle = dirHandle;
+      state.project.name = dirHandle.name || 'Untitled Project';
+      buildTreeFromEntries(entries, state.project.name);
+      activeFolderId = state.project.rootFolders[0]?.id || null;
+      activeFileId = state.project.rootFolders[0]?.files?.[0]?.id || null;
+      selectedNodeId = activeFileId || activeFolderId;
+      els.projectName.value = state.project.name;
+      const firstFile = activeFileId ? findFileById(activeFileId) : null;
+      els.editor.value = firstFile ? (firstFile.content || '') : '';
+      renderTree();
+      updateEditorView();
+      persistState();
+      if (activeFileId) openFile(activeFileId);
+    }
+
+    async function openProjectFolderViaPicker() {
+      try {
+        if (window.showDirectoryPicker) {
+          const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+          await openProjectFolderFromHandle(handle);
+          return;
+        }
+      } catch (error) {
+        console.warn('Directory picker cancelled or unavailable:', error);
+      }
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.setAttribute('webkitdirectory', '');
+      input.onchange = async () => {
+        const files = [...(input.files || [])];
+        if (!files.length) return;
+        const rootLabel = files[0].webkitRelativePath?.split('/')[0] || 'Untitled Project';
+        const entries = [];
+        for (const file of files) {
+          entries.push({
+            relativePath: file.webkitRelativePath || file.name,
+            content: await file.text()
+          });
+        }
+        projectFolderHandle = null;
+        buildTreeFromEntries(entries, rootLabel);
+        state.project.name = rootLabel;
+        activeFolderId = state.project.rootFolders[0]?.id || null;
+        activeFileId = state.project.rootFolders[0]?.files?.[0]?.id || null;
+        selectedNodeId = activeFileId || activeFolderId;
+        els.projectName.value = state.project.name;
+        const firstFile = activeFileId ? findFileById(activeFileId) : null;
+        els.editor.value = firstFile ? (firstFile.content || '') : '';
+        renderTree();
+        updateEditorView();
+        persistState();
+      };
+      input.click();
+    }
+
     function loadProjectFromStorage() {
       const loaded = loadState();
-      if (!loaded) {
-        alert("No saved project found yet.");
-        return;
-      }
+      if (!loaded) return alert('No saved project found yet.');
       Object.assign(state, loaded);
-      els.projectName.value = state.project.name;
       activeFileId = state.activeFileId || null;
       activeFolderId = state.activeFolderId || null;
       selectedNodeId = activeFileId || activeFolderId;
+      els.projectName.value = state.project.name || 'Untitled Project';
       const file = activeFileId ? findFileById(activeFileId) : null;
-      els.editor.value = file ? (file.content || "") : "";
+      els.editor.value = file ? (file.content || '') : '';
       renderTree();
       updateEditorView();
       persistState();
     }
 
     function toggleSidebar(force) {
-      const shouldOpen = typeof force === "boolean" ? force : els.sidebar.classList.contains("closed");
-      els.sidebar.classList.toggle("closed", !shouldOpen);
-      els.overlay.classList.toggle("show", shouldOpen && window.innerWidth <= 800);
+      const shouldOpen = typeof force === 'boolean' ? force : els.sidebar.classList.contains('closed');
+      els.sidebar.classList.toggle('closed', !shouldOpen);
+      els.overlay.classList.toggle('show', shouldOpen && window.innerWidth <= 800);
     }
 
     function setProjectName() {
-      state.project.name = els.projectName.value.trim() || "Untitled Project";
+      state.project.name = els.projectName.value.trim() || 'Untitled Project';
       persistState();
     }
 
-    function getCurrentLineInfo(text, cursorPos) {
-      const lineStart = text.lastIndexOf("\n", cursorPos - 1) + 1;
-      const lineEnd = text.indexOf("\n", cursorPos);
-      const end = lineEnd === -1 ? text.length : lineEnd;
-      const lineText = text.slice(lineStart, end);
-      const beforeCursor = text.slice(lineStart, cursorPos);
-      return { lineStart, lineEnd: end, lineText, beforeCursor };
-    }
-
     function lineOpensBlock(lineText) {
-      const noLineComment = lineText.replace(/\/\/.*$/, "");
-      const trimmed = noLineComment.trimEnd();
-      return /\{\s*$/.test(trimmed);
+      const noLineComment = lineText.replace(/\/\/.*$/, '');
+      return /\{\s*$/.test(noLineComment.trimEnd());
     }
 
     function insertTextAtCursor(textToInsert, replaceLength = 0) {
@@ -938,7 +1168,6 @@
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       const value = editor.value;
-
       editor.value = value.slice(0, start - replaceLength) + textToInsert + value.slice(end);
       const cursor = start - replaceLength + textToInsert.length;
       editor.selectionStart = editor.selectionEnd = cursor;
@@ -948,25 +1177,19 @@
 
     function handleEnterKey(e) {
       e.preventDefault();
-
       const editor = els.editor;
       const value = editor.value;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-
-      const { lineText } = getCurrentLineInfo(value, start);
-      const leading = lineText.match(/^[ \t]*/)?.[0] || "";
-      const extra = lineOpensBlock(lineText) ? " ".repeat(INDENT_SIZE) : "";
-      const insertion = "\n" + leading + extra;
-
-      if (start !== end) {
-        editor.value = value.slice(0, start) + insertion + value.slice(end);
-        editor.selectionStart = editor.selectionEnd = start + insertion.length;
-      } else {
-        editor.value = value.slice(0, start) + insertion + value.slice(end);
-        editor.selectionStart = editor.selectionEnd = start + insertion.length;
-      }
-
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = value.indexOf('\n', start);
+      const endPos = lineEnd === -1 ? value.length : lineEnd;
+      const lineText = value.slice(lineStart, endPos);
+      const leading = lineText.match(/^[ \t]*/)?.[0] || '';
+      const extra = lineOpensBlock(lineText) ? ' '.repeat(INDENT_SIZE) : '';
+      const insertion = '\n' + leading + extra;
+      editor.value = value.slice(0, start) + insertion + value.slice(end);
+      editor.selectionStart = editor.selectionEnd = start + insertion.length;
       updateEditorView();
       saveCurrentFile();
     }
@@ -976,90 +1199,119 @@
       const value = editor.value;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-
       if (start !== end) return;
-
-      const { lineStart, beforeCursor } = getCurrentLineInfo(value, start);
-      if (/^[ \t]*$/.test(beforeCursor)) {
-        const currentIndent = beforeCursor.length;
-        if (currentIndent >= INDENT_SIZE) {
-          e.preventDefault();
-          const removeFrom = start - INDENT_SIZE;
-          editor.value = value.slice(0, removeFrom) + value.slice(end);
-          const insertPos = removeFrom;
-          editor.value = editor.value.slice(0, insertPos) + "}" + editor.value.slice(insertPos);
-          editor.selectionStart = editor.selectionEnd = insertPos + 1;
-          updateEditorView();
-          saveCurrentFile();
-          return;
-        }
-      }
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const beforeCursor = value.slice(lineStart, start);
+      if (!/^[ \t]*$/.test(beforeCursor)) return;
+      const currentIndent = beforeCursor.length;
+      if (currentIndent < INDENT_SIZE) return;
+      e.preventDefault();
+      const removeFrom = start - INDENT_SIZE;
+      editor.value = value.slice(0, removeFrom) + value.slice(end);
+      const insertPos = removeFrom;
+      editor.value = editor.value.slice(0, insertPos) + '}' + editor.value.slice(insertPos);
+      editor.selectionStart = editor.selectionEnd = insertPos + 1;
+      updateEditorView();
+      saveCurrentFile();
     }
 
     // Event wiring
-    els.menuBtn.addEventListener("click", () => {
-      const open = els.sidebar.classList.contains("closed");
-      toggleSidebar(open);
+    els.menuBtn.addEventListener('click', () => {
+      toggleSidebar(els.sidebar.classList.contains('closed'));
     });
-
-    els.overlay.addEventListener("click", () => toggleSidebar(false));
-
-    els.newFolderBtn.addEventListener("click", createFolder);
-    els.newFileBtn.addEventListener("click", createFile);
-    els.saveBtn.addEventListener("click", () => {
+    els.overlay.addEventListener('click', () => toggleSidebar(false));
+    els.openFolderBtn.addEventListener('click', openProjectFolderViaPicker);
+    els.newFolderBtn.addEventListener('click', createFolder);
+    els.newFileBtn.addEventListener('click', createFile);
+    els.saveBtn.addEventListener('click', () => {
       saveCurrentFile();
       persistState();
     });
-    els.loadBtn.addEventListener("click", loadProjectFromStorage);
-    els.renameBtn.addEventListener("click", renameActiveFile);
-    els.deleteBtn.addEventListener("click", deleteActiveFile);
+    els.loadBtn.addEventListener('click', loadProjectFromStorage);
+    els.autoSaveBtn.addEventListener('click', () => setAutoSaveEnabled(!realTimeSaveEnabled));
+    els.renameBtn.addEventListener('click', renameActiveFile);
+    els.deleteBtn.addEventListener('click', deleteActiveFile);
+    els.projectName.addEventListener('input', setProjectName);
 
-    els.projectName.addEventListener("input", setProjectName);
-
-    els.editor.addEventListener("input", () => {
+    els.editor.addEventListener('input', () => {
       updateEditorView();
-      saveCurrentFile();
+      if (realTimeSaveEnabled) scheduleAutoSave();
+      else saveCurrentFile();
+      updateAutocomplete();
+    });
+    els.editor.addEventListener('scroll', syncScroll);
+    els.editor.addEventListener('click', updateAutocomplete);
+    els.editor.addEventListener('keyup', (e) => {
+      if (['ArrowLeft', 'ArrowRight', 'Backspace', 'Delete', 'Home', 'End'].includes(e.key) || /[A-Za-z0-9_]/.test(e.key)) {
+        updateAutocomplete();
+      }
     });
 
-    els.editor.addEventListener("scroll", syncScroll);
-
-    els.editor.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
+    els.editor.addEventListener('keydown', (e) => {
+      if (autocomplete.visible && e.key === 'ArrowDown') {
+        e.preventDefault();
+        autocomplete.index = (autocomplete.index + 1) % autocomplete.items.length;
+        renderAutocomplete();
+        return;
+      }
+      if (autocomplete.visible && e.key === 'ArrowUp') {
+        e.preventDefault();
+        autocomplete.index = (autocomplete.index - 1 + autocomplete.items.length) % autocomplete.items.length;
+        renderAutocomplete();
+        return;
+      }
+      if (autocomplete.visible && (e.key === 'Enter' || e.key === 'Tab')) {
+        if (acceptAutocomplete()) {
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === 'Tab') {
         e.preventDefault();
         const start = els.editor.selectionStart;
         const end = els.editor.selectionEnd;
         const value = els.editor.value;
-        els.editor.value = value.substring(0, start) + "  " + value.substring(end);
+        els.editor.value = value.substring(0, start) + '  ' + value.substring(end);
         els.editor.selectionStart = els.editor.selectionEnd = start + 2;
         updateEditorView();
         saveCurrentFile();
         return;
       }
-
-      if (e.key === "Enter") {
+      if (e.key === 'Enter') {
+        hideAutocomplete();
         handleEnterKey(e);
         return;
       }
-
-      if (e.key === "}") {
+      if (e.key === '}') {
+        hideAutocomplete();
         handleCloseBraceKey(e);
         return;
       }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      if (e.key === 'Escape') {
+        hideAutocomplete();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentFile();
       }
     });
 
-    els.tree.addEventListener("click", (e) => {
-      const row = e.target.closest(".tree-row");
-      if (!row) return;
+    els.autocomplete.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.autocomplete-item');
+      if (!item) return;
+      e.preventDefault();
+      autocomplete.index = Number(item.dataset.index || 0);
+      acceptAutocomplete();
+    });
 
+    els.tree.addEventListener('click', (e) => {
+      const row = e.target.closest('.tree-row');
+      if (!row) return;
       const id = row.dataset.id;
       const action = row.dataset.action;
 
-      if (action === "toggle-folder") {
+      if (action === 'toggle-folder') {
         const folder = findFolderById(id);
         if (!folder) return;
         folder.open = !folder.open;
@@ -1067,43 +1319,33 @@
         activeFolderId = id;
         renderTree();
         persistState();
-      }
-
-      if (action === "open-file") {
+      } else if (action === 'open-file') {
         openFile(id);
         persistState();
       }
     });
 
-    window.addEventListener("resize", () => {
+    window.addEventListener('resize', () => {
       measureMetrics();
       renderBlockGuides();
+      renderAutocomplete();
       if (window.innerWidth > 800) {
-        els.overlay.classList.remove("show");
-        if (els.sidebar.classList.contains("closed")) {
-          els.sidebar.classList.remove("closed");
-        }
+        els.overlay.classList.remove('show');
+        if (els.sidebar.classList.contains('closed')) els.sidebar.classList.remove('closed');
       }
     });
 
-    // Initial render
+    setAutoSaveEnabled(realTimeSaveEnabled);
     renderTree();
     measureMetrics();
-
     if (activeFileId) {
       const file = findFileById(activeFileId);
-      if (file) els.editor.value = file.content || "";
-    } else {
-      const firstFile = findFileById(state.project.rootFolders[0]?.files?.[0]?.id);
-      if (firstFile) {
-        activeFileId = firstFile.id;
-        els.editor.value = firstFile.content || "";
-      }
+      if (file) els.editor.value = file.content || '';
     }
-
     updateEditorView();
     persistState();
     toggleSidebar(true);
   </script>
+
 </body>
 </html>

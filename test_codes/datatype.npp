@@ -1,0 +1,40 @@
+string = "Hello, World"
+interger = 100
+float = 3.14159
+none = None
+boolean = True
+
+listz = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+]
+
+tuples = (
+    2,
+    4,
+    6,
+    8,
+    10,
+)
+
+dicts = {
+    "a": 10,
+    "b": 20,
+    "c": 30,
+}
+
+sets = {
+    1,
+    2,
+    3,
+    4,
+    5,
+}

@@ -1,5 +1,12 @@
-![Static Badge](https://img.shields.io/badge/Nlang_npp-Npp)
-![GitHub commits since latest release](https://img.shields.io/github/commits-since/AltNicko-npp/Nplang-npp/latest)
+![Static Badge](https://img.shields.io/badge/Nlang_npp-text)
+![GitHub Release](https://img.shields.io/github/v/release/AlternateNicko/Nplang)
+![GitHub Created At](https://img.shields.io/github/created-at/AlternateNicko/Nplang)
+![GitHub commits since latest release](https://img.shields.io/github/commits-since/AlternateNicko/Nplang/latest)
+![GitHub last commit](https://img.shields.io/github/last-commit/AlternateNicko/Nplang)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/AlternateNicko/Nplang/total)
+![GitHub top language](https://img.shields.io/github/languages/top/AlternateNicko/Nplang)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/AlternateNicko/Nplang)
+![GitHub Release Date](https://img.shields.io/github/release-date/AlternateNicko/Nplang)
 
 
 

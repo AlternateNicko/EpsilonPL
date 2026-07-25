@@ -2,7 +2,7 @@ ___
 # About
 ___
 
-Nlang is a transpiled language writen in python.
+Nlang (or N++, Npp) is a transpiled language writen in python.
 It is a high level, simple programming language, a project that I have been doing for over a year as a hobby.
 Due to sophisticated syntaxes and many supports, I've decided to make it public
 
@@ -60,21 +60,43 @@ Keywords:
 - not
 - from
 - as
-  
-___
-# special syntaxes
-___
-• Code blocks - These are defined with curly brackets, { as the starting bracket and } as the ending bracket, this is usually defined at the end of an if, else if, else statement, function definition, class instances, while and for loops, and any that involves code blocks.
 
-• import - libraries are still early stages, but with the "library" folder, you can create your own libraries using python.
+• Operators
++ Addition
+- Subtraction
+* Multiplication
+/ Division
+% Modular division
+// Integer division
+** Exponential
+++ Increment
+-- Decrement
+== Is Equal
+!= Is Not Equal
+< Less than
+> Greater than
+<= Less or equal than
+>= Greater or equal than
+___
+# core syntax elements
+___
+• Code blocks - These are enclosed with curly brackets { }, but curly brackets can also be used in map data types
 
 • // - this symbol is defined as a comment
 
+• */ /* defines multilined comments and are enclosed with those symbols
+
 • Built in functions - there are built in functions and methods used for easier variable assignments and value manipulations
 
-• OOP - There are multiple syntaxes used for Object Oriented Programming
+• Case-Sensitive language - uppercase and lowercase characters acts differently
+
+• white spaces are ignored - Tabs, spaces, and lines without any codes are ignored and skipped
+
+• OOP support - There are multiple syntaxes used for Object Oriented Programming
 1. "class" - the main keyword to define a object
 2. <const> - the "construction" name, used in
+3. public - Object Accessible attributes
+4. private - class protected attribute
 ```python
 private func <const>(self)
 {
@@ -192,7 +214,7 @@ results = npp.execute()
 - Check out `built_in_libraries` for example, it uses the same layout, but mostly coded for multiple libraries parsing
 
 ___
-# Example Nlang Codes
+# Example Npp Codes
 ___
 
 • Simple Syntax Examples
@@ -318,20 +340,20 @@ ___
 ___
 - This code was first developed around November of 2024, Where I only had been learning python for about 3 months.
 - This transpiled language is a hobby language and project, This project was develop with the purpose of teaching me more about python, programming, debugging, and more
-- There are parts of the Nlang source code that were written a year ago, where codes weren't structured properly, and some were written a few months ago, when I finally came back to work on to this language, which are structured neatly while still following the design of the program when i first written it.
+- There are parts of the Npp source code that were written a year ago, where codes weren't structured properly, and some were written a few months ago, when I finally came back to work on to this language, which are structured neatly while still following the design of the program when i first written it.
 ___
 # What to expect
 ___
 - you should expect tons of bugs, errors, and parsing problems. This language is still not bug free
 - The language is getting bug fixes and development everyday, updates frequently every week, but sometimes it won't be quick, as I (main contributor) am also busy with other things.
-- Most updates are bug fixes, and major updates only drops whenever there are minimal bugs left that doesn't occur majorly in most programs
-- Nlang version 2 might take months or years, as I have plans to rewrite everything all with my current knowledge in programming.
-- Testing takes long, as most tests works while some tests doesn't. Each tests are nlang test programs, most of the time, I always test after debugging, some of these programs works, while others doesn't. So some bug fixes makes little difference
+- Most updates are bug fixes, andmajor updates only drops whenever there are minimal bugs left that doesn't occur majorly in most programs
+- Npp version 2 might take months or years, as I have plans to rewrite everything all with my current knowledge in programming.
+- Testing takes long, as most tests works while some tests doesn't. Each tests are npp test programs, most of the time, I always test after debugging, some of these programs works, while others doesn't. So some bug fixes makes little difference
 ___
 # Updates
 ___
 "npp.py" is where the main source code is located.
-Nlang gets updates every 1-2 weeks for bug fixes, monthly for features
+Npp gets updates every 1-2 weeks for bug fixes, monthly for features
 
-• Minor updates - Nlang will get small features and bug fixes with this updates, Minor updates also includes updates outside of npp.py, built in libraries, or others will also get updates.
-• Major updates - Nlang gets updates that includes huge features, additions, bug fixes, and even reworks. These updates are mostly rare, sometimes just every few months or a year if I have the time. This type of update is important as it could majorly improve speed, optimizations, future development, or syntaxes.
+• Minor updates - Npp will get small features and bug fixes with this updates, Minor updates also includes updates outside of npp.py, built in libraries, or others will also get updates.
+• Major updates - Npp gets updates that includes huge features, additions, bug fixes, and even reworks. These updates are mostly rare, sometimes just every few months or a year if I have the time. This type of update is important as it could majorly improve speed, optimizations, future development, or syntaxes.

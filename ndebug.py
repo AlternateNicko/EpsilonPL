@@ -63,6 +63,12 @@ class debug():
                 print(name)
                 for f in self.npp.classes[name]:
                     print(self.npp.classes[name][f])
+        
+        if self.npp.objects:
+            for name in self.npp.objects:
+                print(name)
+                for f in self.npp.objects[name]:
+                    print(self.npp.objects[name][f])
         print("]")
         
     def print_init(self, code):

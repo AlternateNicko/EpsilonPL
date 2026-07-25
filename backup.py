@@ -147,6 +147,7 @@ class NPP:
         ] # for eval to know if the expression they are evaluating has the languages codes
         self.bim = [] # this one is for methods
         self.cnt = 0 # the main pointer to the line of code
+        self.output = [] # return output
         self.traceback = {"<module>": self.cnt} # the traceback, tracing back to where errors originate
         self.classes = {} # name: {methods: {method name: same as funcs}, variables: {name: value}, inheritence: [class name]
         self.og_c = 0 # the count, but the count where the pointer is pointing at, and not changed by any parsing actions
@@ -486,17 +487,17 @@ class NPP:
         self.cache["eval"][exp] = expression
         return expression
         
+        
+        
+        
     def execute(self):
         # main executer of the code, the start up
         while True:
             if self.cnt >= len(self.Instructions):
                 break # ends the program once the cnt reaches over the programs amount of line of code
-            instruction = self.Instructions[self.cnt].strip()
+            instruction = self.Instructions[self.cnt]
             self.traceback["<module>"] = self.cnt
-            if instruction is None or instruction == "ignore":
-                pass
-            else:
-                result = self.execute_functions(instruction) # parses the single line of code
+            result = self.execute_functions(instruction) # parses the single line of code
             if result != None:
                 print(result) # print results
             self.cnt += 1
@@ -516,7 +517,7 @@ class NPP:
         
         while self.cnt < len(self.Instructions):
             instruction = self.Instructions[self.cnt].strip()
-            if instruction == "" or instruction is None or instruction == "ignore":
+            if instruction == "":
                 pass
             else:
                 result = self.execute_functions(instruction)
@@ -533,6 +534,7 @@ class NPP:
         self.cnt = count
         self.og_c = ogc
         self.Instructions = original
+        return self.output
     
     def prep_exec(self, code): # prepares to execute a code block
         final = ""
@@ -543,15 +545,11 @@ class NPP:
     # also supports getting nested blocks, and dont need indent because of the braces (and the rest)
     def get_block(self, intent=False):
         cnt = self.cnt
-        ogc = self.og_c
         if '{' in self.Instructions[cnt].strip() or "{" in self.Instructions[cnt + 1].strip():
-            if '{' not in self.Instructions[cnt]:
-                cnt += 1
-                ogc += 1 # for brackets starting at the same line as the function definition
+            cnt += 1 if '{' not in self.Instructions[cnt] else 0 # for brackets starting at the same line as the function definition
             if "{" in self.Instructions[cnt]:
                 nested = 1
                 cnt += 1
-                ogc += 1
             else:
                 nested = 0
             block = [] # to be returned
@@ -559,7 +557,6 @@ class NPP:
                 line = self.Instructions[cnt].strip()
                 block.append(line)
                 cnt += 1
-                ogc += 1
                 if self.special_find(line, "{", ("'", '"', "(", "["), ('"', "'", ")", "]")):
                     nested += 1
                 if self.special_find(line, "}", ("'", '"', "(", "["), ('"', "'", ")", "]")):
@@ -574,7 +571,7 @@ class NPP:
                 block[-1] = line.strip()[:-1].strip()
             elif line.strip() == "}":
                 del block[-1]
-            return block, cnt, ogc
+            return block, cnt
         else:    
             
             print("\033[31mTraceback(most_recent_call_back):\033[0m")
@@ -732,7 +729,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nTypeError: {item_type} cannot be created without an ending {item_end} bracket/parenthesis")
                     self.Errors["TypeError"] = True
                 return [], 0
@@ -742,7 +739,7 @@ class NPP:
             print("\033[31mTraceback(most_recent_call_back):\033[0m")
             for i in self.traceback:
                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `(<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `(<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: Item can't be created")
                 self.Errors["TypeError"] = True
             return None
@@ -767,7 +764,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nValueError: {numsys} is an invalid number system type")
             self.Errors["ValueError"] = True
             return
@@ -839,7 +836,7 @@ class NPP:
                         print("\033[31mTraceback(most_recent_call_back):\033[0m")
                         for i in self.traceback:
                             print(f"    TB - [ File `(<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nTypeError: expected value type of condition is `bool` but got `{type(boolean)}`")
                             self.Errors["TypeError"] = True
                         return None
@@ -1037,8 +1034,6 @@ class NPP:
             count = self.functions[name]['end']
             argument = provided_args
             arg = self.functions[name]['args']
-            ogc = self.functions[name]['ogc']
-            count_ogc = self.functions[name]['end ogc']
             self.is_pub = True
             self.is_priv = False
         else:
@@ -1046,26 +1041,21 @@ class NPP:
                 block = self.func_scope[self.func_name]["functions"][name]['block']
                 count = self.func_scope[self.func_name]["functions"][name]['end']
                 arg = self.func_scope[self.func_name]["functions"][name]['args']
-                ogc = self.func_scope[self.func_name]["functions"][name]['ogc']
-                count_ogc = self.func_scope[self.func_name]["functions"][name]['end ogc']
             else:
                 block = self.func_scope[self.og_fname]["functions"][name]['block']
                 count = self.func_scope[self.og_fname]["functions"][name]['end']
                 arg = self.func_scope[self.og_fname]["functions"][name]['args']
-                ogc = self.func_scope[self.og_fname]["functions"][name]['ogc']
-                count_ogc = self.func_scope[self.og_fname]["functions"][name]['end ogc']
             argument = provided_args
             self.is_priv = True
             self.is_pub = False
         self.cnt = 0
-        self.og_c = ogc + 1
         point = self.cnt
         if len(argument) > len(arg):
             if not self.attempt:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")    
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: Function `{name}` takes {len(arg)} amount of arguments, but {len(argument)} is given")
             self.Errors["TypeError"] = True
             return
@@ -1077,6 +1067,13 @@ class NPP:
         
         past_name = self.og_fname
         og_name = self.func_name
+        og_cache = self.cache
+        self.cache = {
+            "eval": {}, # for evaluation
+            "func": {},
+            "class": {},
+            "cond": {} # for conditions
+        }
         self.og_fname = self.func_name
         self.func_name = name
         original_inst = self.Instructions
@@ -1100,7 +1097,7 @@ class NPP:
         self.original_var = {}
         self.Instructions = original_inst
         self.cnt = count
-        self.og_c = count_ogc
+        self.cache = og_cache
         self.is_priv = og_cond
         self.is_pub = og_cond1
         del self.traceback[name]
@@ -1114,13 +1111,10 @@ class NPP:
         block = self.classes[name]["methods"][m_name]['block']
         count = self.classes[name]["methods"][m_name]['end']
         arg = self.classes[name]["methods"][m_name]['args'].copy()
-        ogc = self.classes[name]["methods"][m_name]['ogc']
-        count_ogc = self.classes[name]["methods"][m_name]['end ogc']
         argument = provided_args
         self.special[name]["access"] = True
         self.arg = arg
         self.cnt = 0
-        self.og_c = ogc + 1
         self.func_name = name
         point = self.cnt
         if len(argument) > len(arg):
@@ -1128,7 +1122,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: Class `{name}` Method `{m_name}` takes {len(arg)} amount of arguments, but {len(argument)} is given")
             self.Errors["TypeError"] = True
             return
@@ -1141,6 +1135,13 @@ class NPP:
             self.variables = self.classes[name]["variables"].copy()
         past_name = self.og_fname
         og_name = self.func_name
+        og_cache = self.cache
+        self.cache = {
+            "eval": {}, # for evaluation
+            "func": {},
+            "class": {},
+            "cond": {} # for conditions
+        }
         self.og_fname = self.func_name
         self.func_name = name
         self.in_class[2] = object_name
@@ -1179,10 +1180,10 @@ class NPP:
         self.in_func -= 1
         if self.in_func <= 0:
             self.in_class = [None, False, None]
+        self.cache = og_cache
         self.original_var = {}
         self.Instructions = original_inst
         self.cnt = count
-        self.og_c = count_ogc
         if name in self.traceback:
             del self.traceback[m_name]
         return
@@ -1203,7 +1204,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nIndexError: length of list {name} is `{len(var)}` but `{len(addr)}` is out of list range")
                 self.Errors["IndexError"] = True
                 return
@@ -1215,7 +1216,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: Given variable {name} value is not a list -> type: {type(value)}")
                 self.Errors["TypeError"] = True
             return
@@ -1306,7 +1307,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nNameError: Name {name} not a defined variable")
                 self.Errors["NameError"] = True
                 return None
@@ -1319,7 +1320,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: Syntax `halt` is not inside a loop")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1332,7 +1333,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: Syntax `continue` is not inside a loop")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1341,12 +1342,10 @@ class NPP:
         elif instruction.startswith('while'):
             # like a while loop
             point = 0
-            ogc = self.og_c
-            block, count, eogc = self.get_block()
+            block, count = self.get_block()
             condition = instruction[6:-1] if instruction.endswith('{') else instruction[6:]
             self.exec_fl += 1
             while self.run_condition(condition):
-                self.og_c = ogc
                 code = self.prep_exec(block)
                 self.exec_block(code, count)
                 if self.breaking:
@@ -1355,7 +1354,6 @@ class NPP:
                     
             self.exec_fl -= 1
             self.cnt = count
-            self.og_c = eogc
         
         elif instruction.startswith('return') and self.in_func > 0 or instruction.startswith('return') and self.in_class[1] and self.in_func > 0:
             # returns a value in a function
@@ -1376,7 +1374,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nNameError: Name {arg} is not a variable or a defined name")
                 self.Errors["NameError"] = True
                 return None
@@ -1388,7 +1386,7 @@ class NPP:
             self.if_executed = False
             self.in_if = True
             condition = instruction[2:-1].strip() if instruction.endswith('{') else instruction[2:].strip()
-            block, count, eogc = self.get_block()
+            block, count = self.get_block()
             cond = self.run_condition(condition)
             if cond:
                 self.condition = True
@@ -1398,10 +1396,8 @@ class NPP:
                 self.in_if = True
                 # iterates over the code till it reaches a line starting with else or a non in code block line
                 count -= 1
-                eogc -= 1
                 while True:
                     count += 1
-                    eogc += 1
                     if count > len(self.Instructions[count]): break
                     if self.Instructions[count].strip().startswith('{') or self.Instructions[count].strip().endswith('{'):
                         self.in_block += 1
@@ -1417,16 +1413,13 @@ class NPP:
                         self.if_executed = False
                         break
                 self.cnt = count - 1
-                self.og_c = eogc - 1
                 
             else:
                 self.condition = False 
                 # iterates over the code till it reaches a line starting with else or a non in code block line
                 count -= 1
-                eogc -= 1
                 while True:
                     count += 1
-                    eogc += 1
                     if count > len(self.Instructions[count]): break
                     if self.Instructions[count].strip().startswith('{'):
                         self.in_block += 1
@@ -1444,7 +1437,6 @@ class NPP:
                         break
                 
                 self.cnt = count - 1
-                self.og_c = eogc - 1
                 return
         elif instruction.startswith('else'):
             arg = instruction[4:].strip()
@@ -1456,12 +1448,12 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nSyntaxError: Invalid `else if` syntax use, no if statement starting line")
                     self.Errors["SyntaxError"] = True
                     return None
                 else:
-                    block, count, eogc = self.get_block()
+                    block, count = self.get_block()
                     cond = self.run_condition(condition)
                     self.in_if = True
                     if cond and not self.if_executed:
@@ -1471,10 +1463,8 @@ class NPP:
                         self.in_if = True
                         self.cnt = count - 1
                         count -= 1
-                        eogc -= 1
                         while True:
                             count += 1
-                            eogc += 1
                             if count > len(self.Instructions[count]): break
                             if self.Instructions[count].strip().startswith('{'):
                                 self.in_block += 1
@@ -1487,14 +1477,11 @@ class NPP:
                                 self.in_if = False
                                 break
                         self.cnt = count - 1
-                        self.og_c = eogc - 1
                     else:
                         self.condition = False
                         count -= 1
-                        eogc -= 1
                         while True:
                             count += 1
-                            eogc += 1
                             if count > len(self.Instructions[count]): break
                             if self.Instructions[count].strip().startswith('{'):
                                 self.in_block += 1
@@ -1509,28 +1496,25 @@ class NPP:
                                 self.in_if = False
                                 break
                         self.cnt = count - 1
-                        self.og_c = eogc - 1
                         return
             else:
                 # else statement
-                block, count, eogc = self.get_block()
+                block, count = self.get_block()
                 if not self.in_if:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nSyntaxError: invalid else statement syntax use, no if and/or else if statement use before else")
                     self.Errors["SyntaxError"] = True
                     return None
                 elif self.condition:
                     self.cnt = count - 1
-                    self.og_c = eogc - 1
                 else:
                     self.in_if = False
                     code = self.prep_exec(block)
                     self.exec_block(code, count)
                     self.cnt = count - 1
-                    self.og_c = eogc - 1
             
         
         # for loops (for each and loops)
@@ -1544,15 +1528,13 @@ class NPP:
                 iterable = self.eval(iter, {}, self.variables)
             if isinstance(iterable, str):
                 iterable = list(iterable)
-            ogc = self.og_c
-            block, count, eogc = self.get_block()
+            block, count = self.get_block()
             if not block:
                 quit()
             self.exec_fl += 1
             for cnt, val in enumerate(iterable):
                 self.variables[arg] = val
                 self.process_vars()
-                self.og_c = ogc
                 code = self.prep_exec(block)
                 self.exec_block(code, count)
                 if self.breaking:
@@ -1560,7 +1542,6 @@ class NPP:
                     break
             self.exec_fl -= 1 
             self.cnt = count - 1
-            self.og_c = eogc - 1
         
         elif instruction.startswith('call '):
             # calls a user defined function (also supports class methods, both inside a class and outside)
@@ -1610,7 +1591,6 @@ class NPP:
                 a = self.special_split(arg[1], ",", ("'", '"', "(", "[", "{"), ("'", '"', ")", "]", "}"))
                 a = [self.convert_arg(ar.strip()) for ar in a]
                 self.functions[name]['end'] = self.cnt
-                self.functions[name]['end ogc'] = self.og_c
                 self.run_functions(name, a, False)
                 
             elif self.in_func:
@@ -1620,15 +1600,12 @@ class NPP:
                     ending = self.cnt
                     if self.is_priv:
                         self.func_scope[self.og_fname]["functions"][name]['end'] = self.cnt
-                        self.func_scooe[self.og_fname]["functions"][name]['end ogc'] = self.og_c
                     elif self.is_pub:
                         self.func_scope[self.func_name]["functions"][name]['end'] = self.cnt
-                        self.functions[self.func_name]["functions"][name]['end ogc'] = self.og_c
                     self.run_functions(name, a, True)
                     self.cnt = ending
             if not self.in_class[1] and isclass:
                 self.special[name]["access"] = False
-                
         elif instruction.startswith("public") or instruction.startswith("private"):
             type = ""
             if instruction.startswith("public"):
@@ -1654,30 +1631,28 @@ class NPP:
                 # user define function
                 # example: `func main(arg1, arg2):`
                 start = self.cnt
-                ogc = self.og_c
                 arg = instruction[5:-1] if instruction.endswith('{') else instruction[5:] # ternary conditions :)
                 arg = arg.rstrip("{").strip()
                 arg = arg[:-1].split('(', 1) # removes the starting parenthensis and ending
                 name = arg[0]
                 func_arg = arg[1].split(',')
-                block, count, eogc = self.get_block()
+                block, count = self.get_block()
                 if type == "pub":
-                    self.functions[name] = {'block': block, 'args': func_arg, 'end': count, 'start': start, 'ogc': ogc, 'end ogc': eogc}
+                    self.functions[name] = {'block': block, 'args': func_arg, 'end': count, 'start': start}
                 else:
                     if self.func_name not in self.func_scope.keys():
                         self.func_scope[self.func_name] = {"variables": {}, "functions": {}, "classes": {}}
-                    self.func_scope[self.func_name]["functions"][name] =  {'block': block, 'args': func_arg, 'end': count, 'start': start, 'ogc': ogc, 'end ogc': eogc}
+                    self.func_scope[self.func_name]["functions"][name] =  {'block': block, 'args': func_arg, 'end': count, 'start': start}
                 self.cnt = count - 1
         
         # error handling keywords
         elif instruction.startswith('attempt'):
             # error handling by catching errors, with throw and catch and finally
-            block, count, eogc = self.get_block()
+            block, count = self.get_block()
             self.attempt = True
             code = self.prep_exec(block)
             self.exec_block(code, count)
             self.cnt = count - 1
-            self.og_c = eogc - 1
             return
         
         elif instruction.startswith('catch'): # Catching Errors
@@ -1690,15 +1665,14 @@ class NPP:
                         new_name.append(letter)
                 self.attempt = False # so the errors and messages out of attempt block will work
                 error_name = "".join(new_name)
-                block, count, eogc = self.get_block()
+                block, count = self.get_block()
                 if error_name in self.Errors.keys():
-                    if self.Errors[error_name]:
+                    if self.Errors[name]:
                         for i in self.Errors:
                             self.Errors[i] = False
                         code = self.prep_exec(block)
                         self.exec_block(code, count)
                     self.cnt = count - 1
-                    self.og_c = eogc - 1
                 elif error_name in ["any", "Exception"]:
                     if any(i for i in self.Errors.values()):
                         for i in self.Errors:
@@ -1706,12 +1680,11 @@ class NPP:
                         code = self.prep_exec(block)
                         self.exec_block(code, count)
                     self.cnt = count - 1
-                    self.og_c = eogc - 1
                 else:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nNameError: Invalid Error name {error_name} not found")
                     self.Errors["NameError"] = True
                     return None
@@ -1720,7 +1693,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: Invalid catching syntax, no attempt block before catching")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1733,7 +1706,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: Invalid name for error {name}, given must end with `Error`")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1741,7 +1714,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\n{name}: {output}")
                 self.Errors[name] = True
                 return None
@@ -1749,7 +1722,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: Invalid given output arguments for throw")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1827,7 +1800,7 @@ class NPP:
                         print("\033[31mTraceback(most_recent_call_back):\033[0m")
                         for i in self.traceback:
                             print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                         print(f"\nModuleError: Cannot access directory `{lib}` perhaps try a different directory?")
                         self.Errors["ModuleError"] = True
                         return
@@ -1877,7 +1850,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nModuleError: Module `{lib}` not an available module")
                     self.Errors["ModuleError"] = True
                     return
@@ -1888,7 +1861,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: keyword `rename` requires `as` to split both library and renamed library name, but got {instruction.strip()}")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1900,7 +1873,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: cannot convert {name} to {rename} due to containing a special character")
                 self.Errors["SyntaxError"] = True
                 return None
@@ -1919,7 +1892,6 @@ class NPP:
                 inst = arg[0]
             if inst in self.variables.keys():
                 del self.variables[inst]
-                
         elif instruction.startswith("sync"):
             # syncronizes variables
             # sync mode host_var with *group_varA and group_varB
@@ -1934,7 +1906,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                         print(f"\nNameError: name `{host}` is not a variable")
                         self.Errors["NameError"] = True
                     return None
@@ -1984,7 +1956,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                         print(f"\nNameError: name `{host}` is not a defined host variable")
                         self.Errors["NameError"] = True
                     return None
@@ -1995,7 +1967,7 @@ class NPP:
                         print("\033[31mTraceback(most_recent_call_back):\033[0m")
                         for i in self.traceback:
                             print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nNameError: name `{vars}` is not defined with in `{host}` syncronization group")
                             self.Errors["NameError"] = True
                         return None
@@ -2034,14 +2006,11 @@ class NPP:
                         
             # statics
             self.special[insts] = {"variables": {}, "methods": {}, "access": False} # this stores static variable and method names here
-            
-            ogc = self.og_c
-            block, count, eogc = self.get_block()
+            block, count = self.get_block()
             og_inst = self.Instructions
             self.Instructions = block
             og_cnt = count
             self.cnt = 0
-            #{'block': block, 'args': func_arg, 'end': count, 'start': start, 'ogc': ogc, 'end ogc': eogc}
             while self.cnt < len(block):
                 if block[self.cnt].endswith("{") and block[self.cnt].startswith("{"):
                     block[self.cnt] = block[self.cnt][:-1]
@@ -2054,19 +2023,15 @@ class NPP:
                     arg = idks.split('(') # removes the starting parenthensis and ending
                     func_name = arg[0]
                     func_arg = [a.strip() for a in arg[1].split(",")]
-                    ogc2 = self.og_c
-                    b, count, eogc2 = self.get_block()
-                    self.classes[insts]["methods"][func_name] = {'block': b, 'args': func_arg, 'end': count, 'start': start, "ogc": ogc2, "end ogc": eogc2, "type": "pub" if block[self.cnt].strip().startswith("public") else "priv"}
+                    b, count = self.get_block()
+                    self.classes[insts]["methods"][func_name] = {'block': b, 'args': func_arg, 'end': count, 'start': start, "type": "pub" if block[self.cnt].strip().startswith("public") else "priv"}
                     self.classes[insts]["variables"]["<attr>"].append(func_name)
                     if block[self.cnt].startswith("public"): # static functions
                         self.special[insts]["methods"][func_name] = True
                     
                     self.cnt = count - 1
-                    self.og_c = eogc - 1
                 self.cnt += 1
-                self.og_c += 1
             self.cnt = og_cnt - 1
-            self.og_c = eogc - 1
             self.Instructions = og_inst
             return
             
@@ -2091,7 +2056,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                         print(f"\nTypeError: no such file type named `{types}`")
                         self.Errors["TypeError"] = True
                     return None
@@ -2100,7 +2065,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                         print(f"\nValueError: name `{name}` contains a special character the function couldn't support")
                         self.Errors["ValueError"] = True
                     return None
@@ -2131,7 +2096,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nValueError: can't push variable as it is not a list")
                         self.Errors["ValueError"] = True
                     else:
@@ -2142,7 +2107,7 @@ class NPP:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
                                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nTypeError: can't evaluate expression {args}")
                                 self.Errors["TypeError"] = True
                                 return None
@@ -2152,7 +2117,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nTypeError: given variable or value type is not a set")
                         self.Errors["TypeError"] = True
                         return None
@@ -2163,7 +2128,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             
                             print(f"\nValueError: the data type given of the variable {name} -> `{self.variables[name]}` is not a set")
                         self.Errors["ValueError"] = True
@@ -2228,7 +2193,7 @@ class NPP:
             print("\033[31mTraceback(most_recent_call_back):\033[0m")
             for i in self.traceback:
                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
             print(f"\nSyntaxError: Instruction/syntax format `{instruction}` not parsed")
             self.Errors["SyntaxError"] = True
             return None
@@ -2284,7 +2249,7 @@ class NPP:
         def built_in_functions(left, main, right, method):
             global m, r, t, json, sys
             libs = False
-            try:
+            if True:
                 if main.startswith('num(') and main.endswith(')'):
                     self.handle_num_function(left, main)
                     return
@@ -2315,7 +2280,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nTypeError: {e}")
                         self.Errors["TypeError"] = True
                         return None
@@ -2368,7 +2333,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nValueError: Value '{arg[1]}' cannot be evaluated. {e}")
                                 print(self.classes[self.in_class[0]]["variables"])  
                                 self.Errors["ValueError"] = True
@@ -2454,7 +2419,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nTypeError: second given argument to sort() is not a boolean value")
                         self.Errors["TypeError"] = True
                         return
@@ -2465,7 +2430,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nTypeError: sort() expected 2 arguments, but got {len(arg)}")
                         self.Errors["TypeError"] = True
                         return
@@ -2482,7 +2447,7 @@ class NPP:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
                                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nTypeError: sort() 1st given argument is not a list")
                             self.Errors["TypeError"] = True
                             return
@@ -2494,7 +2459,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nValueError: given value is not a list")
                         self.Errors["ValueError"] = True
                         return None
@@ -2508,7 +2473,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nValueError: given value is not a list")
                         self.Errors["ValueError"] = True
                         return None
@@ -2530,7 +2495,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nValueError: given value is not a list")
                         self.Errors["ValueError"] = True
                         return None
@@ -2553,7 +2518,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nValueError: given value {arg} is not a list")
                         self.Errors["ValueError"] = True
                         return None
@@ -2606,7 +2571,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nValueError: expected arguments for dict() are `2` but got `{len(arg)}`")
                                 self.Errors["ValueError"] = True
                             return None
@@ -2617,7 +2582,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nValueError: both arguments must be at the same length")
                                 self.Errors["ValueError"] = True
                             return None
@@ -2697,32 +2662,32 @@ class NPP:
                     """
                     main = main.replace('++', '<<').replace('--', '>>')
                     self.variables[left] = self.eval(main, {}, self.variables)
-            except Exception as e:
-                if isinstance(e, ZeroDivisionError):
-                    if not self.attempt:
-                        print("\033[31mTraceback(most_recent_call_back):\033[0m")
-                        for i in self.traceback:
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
-                        print(f"\nZeroDivisionError: given expression divides by 0 value, cannot divide by 0")
-                    self.Errors["ZeroDivisionError"] = True
-                    return None
-                if isinstance(e, MemoryError):
-                    if not self.attempt:
-                        print("\033[31mTraceback(most_recent_call_back):\033[0m")
-                        for i in self.traceback:
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
-                        print(f"\nMemoryError: Maximum Memory reached")
-                    self.Errors["MemoryError"] = True
-                    return
-                print("\033[31mTraceback(most_recent_call_back):\033[0m")
-                for i in self.traceback:
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
-                print(f"\nSyntaxError: Invalid given syntax {main}, {e}")
-                self.Errors["SyntaxError"] = True
-                return None
+#            except Exception as e:
+#                if isinstance(e, ZeroDivisionError):
+#                    if not self.attempt:
+#                        print("\033[31mTraceback(most_recent_call_back):\033[0m")
+#                        for i in self.traceback:
+#                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+#                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
+#                        print(f"\nZeroDivisionError: given expression divides by 0 value, cannot divide by 0")
+#                    self.Errors["ZeroDivisionError"] = True
+#                    return None
+#                if isinstance(e, MemoryError):
+#                    if not self.attempt:
+#                        print("\033[31mTraceback(most_recent_call_back):\033[0m")
+#                        for i in self.traceback:
+#                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+#                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
+#                        print(f"\nMemoryError: Maximum Memory reached")
+#                    self.Errors["MemoryError"] = True
+#                    return
+#                print("\033[31mTraceback(most_recent_call_back):\033[0m")
+#                for i in self.traceback:
+#                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+#                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
+#                print(f"\nSyntaxError: Invalid given syntax {main}, {e}")
+#                self.Errors["SyntaxError"] = True
+#                return None
         if not run_method and not pre_run:
             built_in_functions(left, main, right, ismethod)
         else:
@@ -2760,7 +2725,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nSyntaxError: cap() method doesn't support any arguments")
                             self.Errors["SyntaxError"] = True
                             break
@@ -2770,7 +2735,7 @@ class NPP:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
                                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nTypeError: Given variable is not a string")
                             self.Errors["TypeError"] = True
                             return
@@ -2782,7 +2747,7 @@ class NPP:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
                                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nTypeError: low() method doesn't expext an argument, but {len(arg)} is given")
                             self.Errors["TypeError"] = True
                             return
@@ -2792,7 +2757,7 @@ class NPP:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
                                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                 print(f"\nTypeError: given variable or value is not a string")
                             self.Errors["TypeError"] = True
                             return
@@ -2829,7 +2794,7 @@ class NPP:
                                         print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                         for i in self.traceback:
                                             print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                         print(f"\nTypeError: as() method expected a string argument, not {type(args)}")
                                     self.Errors["Error"] = True
                                     return
@@ -2839,7 +2804,7 @@ class NPP:
                                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                     for i in self.traceback:
                                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                     print(f"\nValueError: {self.variables[name]} can't be converted into {args}")
                                 self.Errors["ValueError"] = True
                                 return
@@ -2918,7 +2883,7 @@ class NPP:
                             print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
                                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                             print(f"\nSyntaxError: invalid expression of pop() method !-> {args}")
                             self.Errors["SyntaxError"] = True
                             return
@@ -2940,7 +2905,7 @@ class NPP:
                                         print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                         for i in self.traceback:
                                             print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                         print(f"\nIndexError: pop() method index is out of range")
                                     self.Errors["IndexError"] = True
                                     return
@@ -2949,7 +2914,7 @@ class NPP:
                                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                     for i in self.traceback:
                                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                                     print(f"\nValueError: {name} is not a list")
                                 self.Errors["ValueError"] = True
                                 return
@@ -2988,7 +2953,7 @@ class NPP:
             print("\033[31mTraceback(most_recent_call_back):\033[0m")
             for i in self.traceback:
                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
             print(f"\nSyntaxError: invalid method: {var_func[cnt]}")
             self.Errors["SyntaxError"] = True
             return
@@ -3005,7 +2970,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: range() 1st argument is not a interger")
             self.Errors["TypeError"] = True
             return None
@@ -3014,7 +2979,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: range() 2nd argument `{end}` is not an interger")
             self.Errors["TypeError"] = True
             return None
@@ -3023,7 +2988,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nTypeError: range() 3rd argument `set` is not an interger")
             self.Errors["TypeError"] = True
             return None
@@ -3045,7 +3010,7 @@ class NPP:
                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                 for i in self.traceback:
                     print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                 print(f"\nSyntaxError: invalid parimeter for num function")
                 self.Errors["SyntaxError"] = True
                 return
@@ -3053,7 +3018,7 @@ class NPP:
             print("\033[31mTraceback(most_recent_call_back):\033[0m")
             for i in self.traceback:
                 print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
             print(f"\nSyntaxError: {e}")
             self.Errors["SyntaxError"] = True
             return
@@ -3186,7 +3151,7 @@ class NPP:
                     print("\033[31mTraceback(most_recent_call_back):\033[0m")
                     for i in self.traceback:
                         print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line: {self.og_c} in {i} ]")
                     print(f"\nValueError: Can't access content: '{content}' as it is an undefined Value")
                 self.Errors["ValueError"] = True
                 return
@@ -3196,9 +3161,9 @@ class NPP:
 #if not self.attempt:
 #    print("\033[31mTraceback(most_recent_call_back):\033[0m")
 #    for i in self.traceback:
-#        print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
-#    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
-#    print(f"\nError: ")
-#    self.Errors["Error"] = True
+#        print(f"    TB - [ File `<{self.path + '/' + self.file_name_name + '.npp'}>` line: {self.traceback[i]}, in {i} ],")
+#        print(f"    TB - [ File `<{self.path + '/' + self.file_name_name + '.npp'}>` TB found > line: {self.og_c} in {i} ]")
+#        print(f"\nError: ")
+#        self.Errors["Error"] = True
 #    return None
         

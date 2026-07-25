@@ -6,11 +6,14 @@ from npp import NPP
 
 t, m, r, sys, json = None, None, None, None, None
 class libraries:
-    def __init__(self, library, library_name, variables, cnt, classes, functions, in_class, current_func, Errors, attempt, Instructions, **kwargs):
+    def __init__(self, library, library_name, variables, cnt, og_c, classes, functions, in_class, current_func, Errors, attempt, Instructions, path, file_name, file_extension, **kwargs):
         self.libraries = ["math", "files", "random", "sys", "time", "smart", "os", "debug"]
         self.library_name = library_name
         self.library = library
         self.variables = variables
+        self.path = path
+        self.file_name = file_name
+        self.file_extension = file_extension
         self.line = ""
         for l in Instructions:
             self.line += l + "\n"
@@ -25,6 +28,7 @@ class libraries:
         self.in_class = in_class
         self.current_functions = current_func
         self.counter = 0
+        self.og_c = og_c
         self.Errors = Errors
     
     def process(self, line, ti, ma, ra, jsn, syss, variant="av"):
@@ -61,12 +65,12 @@ class libraries:
                             json.dump(dictionary, file)
                         except Exception as e:
                             if not self.attempt:
-                                print("Traceback(most_recent_call_back):")
+                                print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
-                                    print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
-                                    print(f"\nValueError: value type of `{file}` is not a file type")
-                                    self.Errors["ValueError"] = True
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"\nValueError: value type of `{file}` is not a file type")
+                                self.Errors["ValueError"] = True
                                 return None
                             
                 if "sys" in self.library and instruction.startswith(self.library_name["sys"] + "."):
@@ -76,12 +80,12 @@ class libraries:
                         value = self.eval(args, {}, self.variables, from_lib=True)
                         if not isinstance(value, int):
                             if not self.attempt:
-                                print("Traceback(most_recent_call_back):")
+                                print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
-                                    print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
-                                    print(f"\nTypeError: sys.jump() expects argument `{args}` to be an int, but got `{type(value)}` instead")
-                                    self.Errors["TypeError"] = True
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"\nTypeError: sys.jump() expects argument `{args}` to be an int, but got `{type(value)}` instead")
+                                self.Errors["TypeError"] = True
                                 return None
                         self.cnt = value
                     elif man.startswith("clear_term(") and man.endswith(")"):
@@ -126,10 +130,10 @@ class libraries:
                             if not self.attempt:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
-                                    print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
-                                    print(f"\nNameError: given name is not a defined class object")
-                                    self.Errors["NameError"] = True
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"\nNameError: given name is not a defined class object")
+                                self.Errors["NameError"] = True
                                 return None
                         print(self.classes[args])
                     elif man.startswith("isattribute(") and man.endswith(")"):
@@ -138,10 +142,10 @@ class libraries:
                             if not self.attempt:
                                 print("\033[31mTraceback(most_recent_call_back):\033[0m")
                                 for i in self.traceback:
-                                    print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                                    print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
-                                    print(f"\nNameError: given name is not a defined class object")
-                                    self.Errors["NameError"] = True
+                                    print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
+                                print(f"\nNameError: given name is not a defined class object")
+                                self.Errors["NameError"] = True
                                 return None
                         elif args[1] not in self.classes[args[0]]["variables"].keys():
                             print(f"<NDB>> ATTRIBUTE {args[1]} IS A DEFINED ATTRIBUTE")
@@ -173,9 +177,11 @@ class libraries:
                                 print(f"{e}: {self.Errors[e]}")
                         else:
                             print(self.Errors[args])
+                    
                 return (self.variables, self.cnt)
             except Exception as e:
                 print(e)
+                
     def assign_variables(self, line, var):
         global t, m, r, json, sys
         if var == "av":
@@ -368,10 +374,10 @@ class libraries:
                     arg[1] = self.eval(arg[1].strip(), {}, vars, from_lib=True)
                     if not isinstance(arg[0], int) or not isinstance(arg[1], int):
                         if not self.attempt:
-                            print("Traceback(most_recent_call_back):")
+                            print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
-                                print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
                             print(f"\nTypeError: randint() method expects interger arguments, not {type(arg[0])}, {type(arg[1])}")
                         self.Errors["TypeError"] = True
                         return None
@@ -381,10 +387,10 @@ class libraries:
                     arg = self.eval(man[7:-1].strip(), {}, self.variables, from_lib=True)
                     if not isinstance(arg[0], int) or not isinstance(arg[1], int):
                         if not self.attempt:
-                            print("Traceback(most_recent_call_back):")
+                            print("\033[31mTraceback(most_recent_call_back):\033[0m")
                             for i in self.traceback:
-                                print(f"    TB - [ File `<string>` line: {self.traceback[i]}, in {i} ],")
-                            print(f"    TB - [ File `<string>` TB found > line: {self.og_c} in {i} ]")
+                                print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` line: {self.traceback[i]}, in {i} ],")
+                            print(f"    TB - [ File `<{self.path / Path(self.file_name).with_suffix(self.file_extension)}>` TB found > line [{self.og_c}]: {self.Instructions[self.cnt]} in {i} ]")
                             print(f"\nTypeError: choice() method expects list or dict arguments, not {type(arg)}")
                         self.Errors["TypeError"] = True
                         return None

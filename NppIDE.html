@@ -450,16 +450,16 @@
 
     function createDefaultState() {
       const mainFileId = uid();
-      const srcFolderId = uid();
+      const save_pathFolderId = uid();
 
       return {
         project: {
           name: "My Project",
           rootFolders: [
             {
-              id: srcFolderId,
+              id: save_pathFolderId,
               type: "folder",
-              name: "src",
+              name: "save_path",
               open: true,
               folders: [],
               files: [
@@ -474,7 +474,7 @@
           ]
         },
         activeFileId: mainFileId,
-        activeFolderId: srcFolderId
+        activeFolderId: save_pathFolderId
       };
     }
 

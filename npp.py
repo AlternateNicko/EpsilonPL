@@ -194,7 +194,7 @@ class NPP:
             "func": {},
             "class": {},
             "cond": {}, # for conditions
-        } # the cache
+        } # the cache, mostly use for memoization, func and classes still has no use for now
         self.objects = {} # for defined variables using class objects
         self.constants = {} # assign variable names if they are constant or not, becomes False if they are assigned
         self.Errors = { # all of the errors that will show up, if one of this is True, the whole code is stop and prints a trace back where the error originated,

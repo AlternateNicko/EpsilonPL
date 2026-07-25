@@ -1,3 +1,8 @@
+![Static Badge](https://img.shields.io/badge/Nlang_npp-Npp)
+![GitHub commits since latest release](https://img.shields.io/github/commits-since/AltNicko-npp/Nplang-npp/latest)
+
+
+
 ___
 # About
 ___

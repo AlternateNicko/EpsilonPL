@@ -117,6 +117,7 @@ class SafeEval(ast.NodeVisitor):
             return self.visit(node.value)
         else:
             raise ValueError(f"Unsupported operation: {ast.dump(node)} line {line}")
+
 class NPP:
     def __init__(self, instructions, special_library={}, path=None, file="npp", extension=".npp"):
         # nplibs holds dictionaries like this
@@ -124,11 +125,11 @@ class NPP:
         # where module_class is the class object of that library
         
         # CONFIGURATIONS
-        self.version = "1.0.2" # current version
+        self.version = "1.0.4" # current version
         self.path = Path.cwd() if path is None else path # current program directory
         self.file_name = file # name of file
-        self.file_extension = extension
-        self.run = True
+        self.file_extension = extension # file extension of the file
+        self.run = True # Runtime flag
         
         # LIBRARIES
         self.nplibs = special_library
@@ -136,49 +137,58 @@ class NPP:
         self.libraries.extend(list(special_library.keys()))
         self.library = [] # library names will be appended here once they are imported
         self.nplibs_acc = {key: False for key in self.nplibs.keys()}
-
-        # i may aswell explain each variables here
-        self.Instructions = instructions.split("\n")# main instruction line gets split line by line
         
+        # IMPORTANTS
+        self.Instructions = instructions.split("\n")# main instruction line gets split line by line
         self.variables = {} # all the variables are stored here
-        self.return_val = None # return value
-        self.bif = ["num", "input", "eval", "exec", "length", "sort", "min", "mean", "max", "median", "mode", "sum", "range", "call", "reverse", "type", "format",
-            "zip", "dict", "map"
-        ] # for eval to know if the expression they are evaluating has the languages codes
-        self.bim = [] # this one is for methods
         self.cnt = 0 # the main pointer to the line of code
         self.traceback = {"<module>": self.cnt} # the traceback, tracing back to where errors originate
         self.classes = {} # name: {methods: {method name: same as funcs}, variables: {name: value}, inheritence: [class name]
         self.og_c = 0 # the count, but the count where the pointer is pointing at, and not changed by any parsing actions
-        self.in_smth = 0 # i forgot what this does
+        self.return_val = None # return value
+        
+        # EVALUATIONS
+        self.bif = ["num", "input", "eval", "exec", "length", "sort", "min", "mean", "max", "median", "mode", "sum", "range", "call", "reverse", "type", "format",
+            "zip", "dict", "map"
+        ] # for eval to know if the expression they are evaluating has the languages codes
+        self.bim = [] # this one is for methods
+        self.forbiden_chars = [" ", "'", '"', "(", ")", "[", "]", "{", "}", "~", "`", "@", "*", "+", "<", ">", "%", "#", "!", "?", ",", ":", ";", "/"] # characters forbiden to non string names
+        
+        # IDENTIFIERS
+        self.current_func = "" # current function
+        self.og_fname = "" # contains original function scope name or past name
+        self.func_name = "" # name of current function it's inside
+        
+        # FLAGS
         self.in_if = False # inside an if statement
         self.if_executed = False # if an if statement is executed with the conditions being true, turns True
         self.condition = False # for the if, else if statement, turns true once their condition is also true
-        self.in_block = 0 # while exiting or skipping some if and else if statement, this turns true if it's inside a code block (code blocks startimg with { and ends with })
         self.attempt = False # for try-except, but in this language is attempt-catch, once attempting to execute a code, all errors wont print out a trace back, instead it gets catch if it matches with the error name of the catch block
-        self.special = {} # for OOP, protected/static variables or attributes
         self.in_class = [None, False, None] # if the program is currently in a code, first index stores the name of the class, the second shows True if they are in a class, third is what class objecf it is (None if it's inside a class) else False
         self.arg = None # ngl idk what this is used for
         self.original_var = None # original variable once calling a new function, the self.variables are replace with a new dictionary, and original_var stores the global variables
-        self.in_func = 0 # if it's currently inside a function
-        self.func_name = "" # name of current function it's inside
-        self.exec_fl = 0 # if it's currently executing a loop (for loop or while loops)
         self.breaking = False # force break out loops
         self.evals = False # if it's currently evaluating something
+        self.is_priv = False # private func
+        self.is_pub = False # public func, both will be false if they are not inside one
+        self.is_return = False # for return
+        self.eval_deb = False # for debug
+        
+        # COUNTERS
+        self.in_smth = 0 # i forgot what this does
+        self.in_block = 0 # while exiting or skipping some if and else if statement, this turns true if it's inside a code block (code blocks startimg with { and ends with })
+        self.exec_fl = 0 # if it's currently executing a loop (for loop or while loops)
+        self.in_func = 0 # if it's currently inside a function
+        
+        # METADATA'S
         self.functions = {} # where all the functions get stored, their entire code blocks, starting line, ending line, local variables, and arguments
         self.class_callers = {} # kind of like when a variable stores the class's name, pretty muc like this
         self.global_var = {} # Every variables
         self.library_name = {} # where renamed library or current library names are stored
         self.name_library = {} # Vice versa
-        self.forbiden_chars = [" ", "'", '"', "(", ")", "[", "]", "{", "}", "~", "`", "@", "*", "+", "<", ">", "%", "#", "!", "?", ",", ":", ";", "/"] # characters forbiden to non string names
         self.sync_variables = {} # supports multiple syncronized variables instead of one
         self.func_scope = {} # contains the variables and other user defined values like functions and classes
-        self.og_fname = "" # contains original function scope name or past name
-        self.is_priv = False # private func
-        self.is_pub = False # public func, both will be false if they are not inside one
-        self.is_return = False # for return
-        self.current_func = "" # current function
-        self.eval_deb = False # for debug
+        self.special = {} # for OOP, protected/static variables or attributes
         self.cache = {
             "eval": {}, # for evaluation
             "func": {},
@@ -200,6 +210,12 @@ class NPP:
             'ModuleError': False,
             'QuitError': False
         }
+        
+        # Pre load variables
+        self.variables["<file>"] = self.file_name
+        self.variables["<path>"] = str(self.path)
+        self.variables["<libraries>"] = self.library
+        self.variables["<null>"] = None
         
     def single_eval(self, expression, globals=None, locals=None):
         # evaluates one expression
@@ -366,7 +382,7 @@ class NPP:
         return evaluator.visit(tree.body, expression) # final evaluator
     
     def expression(self, exp):
-        # My attempt of a eval rework - Current exprience me
+        # self.eval() was written and implemented a year ago, this function was just added now for optimization and speed
         """
         Converts expressions written in Npp into a AST readable form that can be run in self.eval or instantly to evaluation
         Why did i write this?
@@ -386,6 +402,7 @@ class NPP:
         booleans in variables means if its constant or not during it's first evaluation'
         """
         # cache loading
+        
         if exp in self.cache["eval"].keys():
             change = True
             for v in self.cache["eval"][exp]["variables"].keys():
@@ -595,7 +612,7 @@ class NPP:
                 self.classes[self.in_class[0]]["variables"][v] = self.variables[v]
                 if v not in self.classes[self.in_class[0]]["variables"]["<attr>"]:
                     self.classes[self.in_class[0]]["variables"]["<attr>"].append(v)
-            if self.in_class[2] is not None and v in self.objects[self.in_class[2]]["variables"].keys():
+            if self.in_class[2] is not None and self.in_class[2] in self.objects.keys() and v in self.objects[self.in_class[2]]["variables"].keys():
                 self.objects[self.in_class[2]]['variables'][v] = self.variables[v]
             if v not in self.constants.keys():
                 self.constants[v] = [True, self.variables[v]]
@@ -603,7 +620,7 @@ class NPP:
                 self.constants[v][0] = False
             
             self.constants[v][1] = self.variables[v]
-        if self.in_class[1] and self.in_class[2] is not None:
+        if self.in_class[1] and self.in_class[2] is not None and self.in_class[2] in self.objects.keys():
             self.objects[self.in_class[2]]["variables"]["<dict>"].update(self.objects[self.in_class[2]]["variables"])
         elif self.in_class[1]:
             self.classes[self.in_class[0]]["variables"]["<dict>"].update(self.classes[self.in_class[0]]["variables"])
@@ -823,6 +840,7 @@ class NPP:
         """
         arguments = self.ultimate_split(cond, ["&&", "||", "^^"]) # splits the condition by operators
         text = ""
+        isfalse = False
         for args in arguments:
             if args.startswith(("(", "!(")):
                 isnot = False
@@ -848,10 +866,15 @@ class NPP:
                         boolean = False
                     else:
                         boolean = True
+                if not boolean and "&&" in args:
+                    isfalse = True
+                    break
                 text += str(boolean) + " "
             elif args in ["&&", "||", "^^"]:
                 
                 text += args[1:] + " "
+        if isfalse:
+            return False
         new_cond = self.eval(text, {}, self.variables)
         return new_cond
     
@@ -1075,6 +1098,14 @@ class NPP:
         self.original_var = self.variables
         self.variables = {}
         
+        og_cache = self.cache
+        self.cache = {
+            "eval": {}, # for evaluation
+            "func": {},
+            "class": {},
+            "cond": {}, # for conditions
+        }
+        
         past_name = self.og_fname
         og_name = self.func_name
         self.og_fname = self.func_name
@@ -1099,6 +1130,7 @@ class NPP:
         self.og_fname = past_name
         self.original_var = {}
         self.Instructions = original_inst
+        self.cache = og_cache
         self.cnt = count
         self.og_c = count_ogc
         self.is_priv = og_cond
@@ -1147,6 +1179,14 @@ class NPP:
         self.in_class[1] = True
         self.in_class[0] = name
         
+        og_cache = self.cache
+        self.cache = {
+            "eval": {}, # for evaluation
+            "func": {},
+            "class": {},
+            "cond": {}, # for conditions
+        }
+        
         self.in_func += 1
         original_inst = self.Instructions
         for value, n in zip(argument, arg):
@@ -1181,6 +1221,7 @@ class NPP:
             self.in_class = [None, False, None]
         self.original_var = {}
         self.Instructions = original_inst
+        self.cache = og_cache
         self.cnt = count
         self.og_c = count_ogc
         if name in self.traceback:
@@ -1271,7 +1312,7 @@ class NPP:
                 args = [self.convert_arg(arg.strip()) for arg in argument]
                 self.classes[p_class]["methods"]["<const>"]["end"] = self.cnt + 1
                 c_name = self.in_class[0]
-                self.run_methods(p_class, method, argument, False)
+                self.run_methods(p_class, method, False, p_class, argument, False)
                 # gets variables
                 inherits = copy.deepcopy(self.classes[p_class])
                 self.classes[c_name]["variables"].update(inherits["variables"])
@@ -1280,6 +1321,7 @@ class NPP:
                         self.classes[c_name]["methods"][name] = inherits["methods"][name]
                 self.in_class[0] = c_name
                 self.in_class[1] = True
+                self.cnt -= 1
             return
             
         elif instruction.startswith("<debug>"):
@@ -2029,8 +2071,8 @@ class NPP:
                         self.classes[insts]["methods"].update(parent_const["methods"])
                         self.classes[insts]["variables"].update(parent_const["variables"])
                         self.classes[insts]["variables"]["<dict>"].update(parent_const["variables"])
-                        self.classes[insts]["variables"]["<attr>"].update(parent_const["methods"])
-                        self.classes[insts]["variables"]["<attr>"].update(parent_const["variables"])
+                        self.classes[insts]["variables"]["<attr>"].extend(list(parent_const["methods"].keys()))
+                        self.classes[insts]["variables"]["<attr>"].extend(list(parent_const["variables"].keys()))
                         
             # statics
             self.special[insts] = {"variables": {}, "methods": {}, "access": False} # this stores static variable and method names here

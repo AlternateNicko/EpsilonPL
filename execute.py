@@ -1,5 +1,5 @@
 import sys
-print(sys.path)
+sys.path.append("/storage/emulated/0/Npp")
 from npp import NPP
 from ndebug import debug
 import time

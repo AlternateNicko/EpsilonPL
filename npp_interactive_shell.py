@@ -16,8 +16,8 @@ N++ Interactive Terminal Shell
 Version {npp.version}
 _______________________________________________________________
 Type "help" for available commands
-Type "n++" to run n++ intreperter shell
-Type "n++ program.npp" to run an N++ code
+Type "n++" to run npp intreperter shell
+Type "n++ program.npp" to run an Npp code
 """
 
 

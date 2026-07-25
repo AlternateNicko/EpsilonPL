@@ -1,0 +1,66 @@
+
+
+class Bank {
+    public func <const>(owner, balance) {
+        public balance = balance
+        public owner = owner
+        public deposited = 10000
+        public bank_ammount = 100000
+    }
+    
+    public func deposit(ammount) {
+        output(f("Depositing ${ammount} into your bank account"))
+        if (ammount > balance) {
+            output("Error: you don't have enough balance in your account")
+        }
+        else {
+            deposited = deposited + ammount
+            bank_ammount = bank_ammount + ammount
+            balance = balance - ammount
+        }
+    }
+    
+    public func withdraw(ammount) {
+        output(f("Withdrawing ${ammount} from your bank account"))
+        if (ammount > deposited)
+        {
+            output("Error: given ammount is higher than you deposited")
+        }
+        else
+        {
+            deposited = deposited - ammount
+            bank_ammount = bank_ammount - ammount
+            balance = balance + ammount
+        }
+    }
+    
+    public func info() {
+        output(f("USER {owner}"))
+        output(f("Your Balance: {balance}"))
+        output(f("Deposited: {deposited}"))
+        output(f("Bank Ammount: {bank_ammount}"))
+    }
+}
+
+
+user1 = Bank("Nicko", 10000)
+while (True) {
+    output("Bank Account")
+    output("Bank Commands:")
+    output("1- Deposit")
+    output("2- Withdraw")
+    output("3- Info")
+    
+    choice = input(">>> ")
+    if (choice == "1") {
+        amnt = input("Input ammount > ").as(int)
+        call user1.deposit(amnt)
+    }
+    else if (choice == "2") {
+        amnt = input("Input ammount > ").as(int)
+        call user1.withdraw(amnt)
+    }
+    else {
+        call user1.info()
+    }
+}

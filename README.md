@@ -84,8 +84,6 @@ ___
 
 • // - this symbol is defined as a comment
 
-• */ /* defines multilined comments and are enclosed with those symbols
-
 • Built in functions - there are built in functions and methods used for easier variable assignments and value manipulations
 
 • Case-Sensitive language - uppercase and lowercase characters acts differently
@@ -150,9 +148,9 @@ and "variable" as the variable name
 ___
 # Setup
 ___
-The setup is simple, you can open up NppIDE.py for a quicker coding, or NppIDE.html for a detailed IDE, both simple notebook like IDE (doesn't execute), then after writing the code, save it as .npp, or .nxx, a file extension for Nlang
+The setup is simple, you can open up NppIDE.py for a quicker coding, or NppIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .npp, or .nxx, a file extension for Nlang
 then at npp_interactive_shell, type
-`Nlang your_file.npp`
+`N++ your_file.npp`
 to setup Nlang, you have to first make a .py python program outside of the directory where Nlang (NPP) is stored.
 then write this code
 ```python

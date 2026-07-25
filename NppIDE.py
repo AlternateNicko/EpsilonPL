@@ -1,12 +1,18 @@
-import re
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+import json
 import os
+import re
+import subprocess
+import sys
+import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
+
 
 class AutoComplete:
     def __init__(self, text, words):
         self.text = text
         self.words = sorted(set(words))
+        self.visible = False
 
         self.listbox = tk.Listbox(
             text.master,
@@ -14,15 +20,15 @@ class AutoComplete:
             bg="#111111",
             fg="white",
             selectbackground="#007acc",
-            relief="solid"
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=0,
         )
-
-        self.visible = False
 
         self.text.bind(
             "<KeyRelease>",
-            lambda e: self.text.after_idle(self.update),
-            add="+"
+            lambda e: self.text.after_idle(self.update, e),
+            add="+",
         )
         self.text.bind("<Down>", self.move_down)
         self.text.bind("<Up>", self.move_up)
@@ -33,58 +39,44 @@ class AutoComplete:
 
     def current_word(self):
         line = self.text.get("insert linestart", "insert")
-        m = re.search(r"[A-Za-z_][A-Za-z0-9_]*$", line)
-        return m.group(0) if m else ""
+        match = re.search(r"[A-Za-z_][A-Za-z0-9_]*$", line)
+        return match.group(0) if match else ""
 
     def update(self, event=None):
-    
-        # Ignore only navigation keys
-        if event and event.keysym in (
-            "Up", "Down", "Left", "Right",
-            "Return", "Tab", "Escape"
-        ):
+        if event and event.keysym in ("Up", "Down", "Left", "Right", "Return", "Tab", "Escape"):
             return
-    
+
         word = self.current_word()
-    
         if not word:
             self.hide()
             return
-    
-        # Recalculate matches every keystroke
+
         matches = sorted(
             w for w in self.words
             if w.lower().startswith(word.lower()) and w != word
         )
-    
+
         self.listbox.delete(0, tk.END)
-    
+
         if not matches:
             self.hide()
             return
-    
+
         for match in matches[:10]:
             self.listbox.insert(tk.END, match)
-    
+
         bbox = self.text.bbox("insert")
         if bbox is None:
             self.hide()
             return
-    
+
         x, y, w, h = bbox
-    
         x += self.text.winfo_x()
         y += self.text.winfo_y()
-    
-        self.listbox.place(
-            x=x,
-            y=y + h,
-            width=180
-        )
-    
+
+        self.listbox.place(x=x, y=y + h, width=220)
         self.visible = True
-    
-        # Always select the first suggestion
+
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(0)
         self.listbox.activate(0)
@@ -98,83 +90,78 @@ class AutoComplete:
             return
 
         word = self.current_word()
-
         if not word:
             return
 
         choice = self.listbox.get(tk.ACTIVE)
 
-        self.text.delete(
-            f"insert-{len(word)}c",
-            "insert"
-        )
-
+        self.text.delete(f"insert-{len(word)}c", "insert")
         self.text.insert("insert", choice)
 
         self.hide()
-
         return "break"
 
     def move_down(self, event):
         if not self.visible:
             return
 
-        cur = self.listbox.curselection()
-
-        if cur:
-            i = min(cur[0] + 1, self.listbox.size() - 1)
+        current = self.listbox.curselection()
+        if current:
+            i = min(current[0] + 1, self.listbox.size() - 1)
         else:
             i = 0
 
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(i)
         self.listbox.activate(i)
-
         return "break"
 
     def move_up(self, event):
         if not self.visible:
             return
 
-        cur = self.listbox.curselection()
-
-        if cur:
-            i = max(cur[0] - 1, 0)
+        current = self.listbox.curselection()
+        if current:
+            i = max(current[0] - 1, 0)
         else:
             i = 0
 
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(i)
         self.listbox.activate(i)
-
         return "break"
-        
+
+
 class CustomHighlighter:
     def __init__(self, text_widget):
         self.text = text_widget
 
-        # Your custom language rules
         self.keywords = [
-            "while", "for", "public", "private", "func", "class", "load", "rename", "inherit",
-            "if", "else", "open", "sync", "desync", "attempt", "catch", "in", "ignore", "break", "continue",
-            "import", "get", "and", "is", "as", "not", "or", "global", "return", "True", "False"
+            "while", "for", "public", "private", "func", "class", "load", "rename",
+            "inherit", "with", "from", "if", "else", "open", "sync", "desync",
+            "attempt", "catch", "in", "ignore", "break", "continue", "import", "get",
+            "and", "is", "as", "not", "or", "global", "return", "True", "False", "None",
         ]
 
         self.builtins = [
-            "output", "quit", "num", "input", "eval", "exec", "length", "sort", "min", "mean", "max", "median", "mode", "sum", "range", "call", "reverse", "type", "format",
-            "zip", "dict", "map"
+            "output", "quit", "num", "input", "eval", "exec", "length", "sort",
+            "min", "mean", "max", "median", "mode", "sum", "range", "reverse",
+            "type", "format", "zip", "dict", "map",
         ]
 
+        keyword_group = "|".join(map(re.escape, self.keywords))
+        builtin_group = "|".join(map(re.escape, self.builtins))
 
-        self.token_patterns = [
-            ("comment", r"//.*|#.*"),
-            ("string", r'"[^"\n]*"|\'[^\'\n]*\''),
-            ("number", r"\b\d+(\.\d+)?\b"),
-            ("keyword", r"\b(" + "|".join(map(re.escape, self.keywords)) + r")\b"),
-            ("builtin", r"\b(" + "|".join(map(re.escape, self.builtins)) + r")\b"),
-            ("operator", r"[\+\-\*/=<>\!:]+"),
-            ("brace", r"[\(\)\[\]\{\}]"),
-        ]
+        pattern = (
+            r"(?P<comment>//[^\n]*|#[^\n]*)"
+            r"|(?P<string>\"(?:\\\\.|[^\"\\\\\n])*\"|'(?:\\\\.|[^'\\\\\n])*')"
+            r"|(?P<number>\b\d+(?:\.\d+)?\b)"
+            rf"|(?P<keyword>\b(?:{keyword_group})\b)"
+            rf"|(?P<builtin>\b(?:{builtin_group})\b)"
+            r"|(?P<operator>[\+\-\*=<>\!\?\~\&\|\^\%]+)"
+            r"|(?P<brace>[\(\)\[\]\{{\}}])"
+        )
+        self.token_pattern = re.compile(pattern)
 
         self.configure_tags()
 
@@ -188,19 +175,18 @@ class CustomHighlighter:
         self.text.tag_configure("brace", foreground="#bdc3c7")
 
     def highlight(self, event=None):
-        text = self.text
-        content = text.get("1.0", "end-1c")
+        content = self.text.get("1.0", "end-1c")
 
-        # Remove previous highlighting
-        for tag, _ in self.token_patterns:
-            text.tag_remove(tag, "1.0", "end")
+        for tag in ("comment", "string", "number", "keyword", "builtin", "operator", "brace"):
+            self.text.tag_remove(tag, "1.0", "end")
 
-        # Apply highlighting
-        for tag, pattern in self.token_patterns:
-            for match in re.finditer(pattern, content, re.MULTILINE):
-                start = f"1.0 + {match.start()} chars"
-                end = f"1.0 + {match.end()} chars"
-                text.tag_add(tag, start, end)
+        for match in self.token_pattern.finditer(content):
+            tag = match.lastgroup
+            if not tag:
+                continue
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text.tag_add(tag, start, end)
 
         return "break"
 
@@ -224,6 +210,7 @@ class EditorTab:
             fg=theme["linen_fg"],
             insertbackground=theme["text_fg"],
             font=("Courier", 6),
+            relief="flat",
         )
         self.line_numbers.pack(side="left", fill="y")
 
@@ -241,6 +228,7 @@ class EditorTab:
             font=("Courier", 6),
             padx=11,
             pady=11,
+            highlightthickness=0,
         )
         self.text.pack(side="left", fill="both", expand=True)
 
@@ -253,19 +241,12 @@ class EditorTab:
         self.text.configure(yscrollcommand=self._sync_scroll_y, xscrollcommand=self.scrollbar_x.set)
 
         self.highlighter = CustomHighlighter(self.text)
-        words = (
-            self.highlighter.keywords +
-            self.highlighter.builtins
-        )
-        
-        self.autocomplete = AutoComplete(
-            self.text,
-            words
-        )
+        words = self.highlighter.keywords + self.highlighter.builtins
+        self.autocomplete = AutoComplete(self.text, words)
 
         self.text.bind("<KeyRelease>", self.on_change, add="+")
-        self.text.bind("<MouseWheel>", self.on_change)
-        self.text.bind("<ButtonRelease-1>", self.on_change)
+        self.text.bind("<MouseWheel>", self.on_change, add="+")
+        self.text.bind("<ButtonRelease-1>", self.on_change, add="+")
         self.text.bind("<Return>", self.on_return)
         self.text.bind("<Tab>", self.on_tab)
         self.text.bind("<Control-s>", self.on_save_shortcut)
@@ -276,33 +257,32 @@ class EditorTab:
         self.text.bind("'", self.open_single_quote)
 
         self._update_line_numbers()
-    
+
     def _insert_pair(self, left, right):
         self.text.insert("insert", left + right)
         self.text.mark_set("insert", "insert-1c")
         self.on_change()
         return "break"
-    
+
     def open_paren(self, event):
         return self._insert_pair("(", ")")
-    
+
     def open_bracket(self, event):
         return self._insert_pair("[", "]")
-    
+
     def open_brace(self, event):
         return self._insert_pair("{", "}")
-    
+
     def open_double_quote(self, event):
         return self._insert_pair('"', '"')
-    
+
     def open_single_quote(self, event):
         return self._insert_pair("'", "'")
-        
-    def on_tab(self, event):
 
+    def on_tab(self, event):
         if self.autocomplete.visible:
             return self.autocomplete.complete(event)
-    
+
         self.text.insert("insert", "    ")
         self.on_change()
         return "break"
@@ -313,29 +293,23 @@ class EditorTab:
     def on_change(self, event=None):
         self.highlighter.highlight()
         self._update_line_numbers()
-    
-    def on_return(self, event):
 
+    def on_return(self, event):
         if self.autocomplete.visible:
             return self.autocomplete.complete(event)
-        text = self.text
-    
-        current_line = text.get("insert linestart", "insert")
-    
+
+        current_line = self.text.get("insert linestart", "insert")
         indent = ""
-    
         for ch in current_line:
-            if ch in " \t":
+            if ch in " 	":
                 indent += ch
             else:
                 break
-    
-        text.insert("insert", "\n" + indent)
-    
+
+        self.text.insert("insert", "\n" + indent)
         self.on_change()
-    
         return "break"
-        
+
     def _update_line_numbers(self):
         self.line_numbers.config(state="normal")
         self.line_numbers.delete("1.0", "end")
@@ -344,80 +318,7 @@ class EditorTab:
         numbers = "\n".join(str(i) for i in range(1, line_count + 1))
         self.line_numbers.insert("1.0", numbers)
         self.line_numbers.config(state="disabled")
-    
-    
-    def open_file(self):
-        path = filedialog.askopenfilename(
-            title="Open File",
-            filetypes=[
-                ("Text Files", "*.txt"),
-                ("Python Files", "*.py"),
-                ("JSON Files", "*.json"),
-                ("Markdown", "*.md"),
-                ("All Files", "*.*"),
-                ("Npp Files", "*.npp")
-            ]
-        )
-    
-        if not path:
-            return
-    
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except UnicodeDecodeError:
-            try:
-                with open(path, "r", encoding="latin-1") as f:
-                    content = f.read()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
-                return
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-            return
-    
-        tab = self.current_tab()
-    
-        tab.text.delete("1.0", "end")
-        tab.text.insert("1.0", content)
-        tab.on_change()
-    
-        self.notebook.tab(
-            self.notebook.select(),
-            text=os.path.basename(path)
-        )
-    
-        tab.filepath = path
-    def save_file(self):
-        tab = self.current_tab()
-    
-        if tab.filepath is None:
-            return self.save_as()
-    
-        with open(tab.filepath, "w", encoding="utf-8") as f:
-            f.write(tab.text.get("1.0", "end-1c"))
-    
-    def save_as(self):
-        tab = self.current_tab()
-    
-        path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("All Files", "*.*")]
-        )
-    
-        if not path:
-            return
-    
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(tab.text.get("1.0", "end-1c"))
-    
-        tab.filepath = path
-    
-        self.notebook.tab(
-            self.notebook.select(),
-            text=os.path.basename(path)
-        )
-        
+
     def _on_scroll_y(self, *args):
         self.text.yview(*args)
         self.line_numbers.yview(*args)
@@ -452,7 +353,13 @@ class NotebookIDE:
             "selection_fg": "#ffffff",
         }
 
+        self.state_path = Path.home() / ".npp_ide_state.json"
+        self.recent_files = []
+        self.project_folders = []
+        self.load_state()
+
         self.root.configure(bg=self.theme["bg"])
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         style = ttk.Style()
         style.theme_use("clam")
@@ -462,43 +369,38 @@ class NotebookIDE:
 
         toolbar = ttk.Frame(root)
         toolbar.pack(fill="x")
-        
-        bottom_bar = ttk.Frame(root)
-        bottom_bar.pack(side="bottom", fill="x")
-        
-        symbols = [
-            "Tab",
-            ";", ".", ",",
-            "(", ")", "[", "]", "{", "}",
-            "=", "+", "-", "*", "/",
-            ":", "\"", "'"
-        ]
-        
-        for symbol in symbols:
-        
-            def insert_symbol(s=symbol):
-                tab = self.current_tab()
-                if not tab:
-                    return
-        
-                if s == "Tab":
-                    tab.text.insert("insert", "    ")
-                else:
-                    tab.text.insert("insert", s)
-        
-                tab.on_change()
-        
-            ttk.Button(
-                bottom_bar,
-                text=symbol,
-                width=3,
-                command=insert_symbol
-            ).pack(side="left", padx=1, pady=2)
+
+        self.menu_button = ttk.Button(toolbar, text="☰", width=3, command=self.show_menu)
+        self.menu_button.pack(side="left", padx=(4, 2), pady=3)
 
         ttk.Button(toolbar, text="New Tab", command=self.new_tab).pack(side="left", padx=3, pady=3)
         ttk.Button(toolbar, text="Open", command=self.open_file).pack(side="left", padx=3, pady=3)
         ttk.Button(toolbar, text="Save", command=self.save_file).pack(side="left", padx=3, pady=3)
+        ttk.Button(toolbar, text="Save As", command=self.save_as).pack(side="left", padx=3, pady=3)
         ttk.Button(toolbar, text="Highlight All", command=self.highlight_active).pack(side="left", padx=3, pady=3)
+
+        bottom_bar = ttk.Frame(root)
+        bottom_bar.pack(side="bottom", fill="x")
+
+        symbols = [
+            "Tab", ";", ".", ",",
+            "(", ")", "[", "]", "{", "}",
+            "=", "+", "-", "*", "/",
+            ":", '"', "'",
+        ]
+
+        for symbol in symbols:
+            def insert_symbol(s=symbol):
+                tab = self.current_tab()
+                if not tab:
+                    return
+                if s == "Tab":
+                    tab.text.insert("insert", "    ")
+                else:
+                    tab.text.insert("insert", s)
+                tab.on_change()
+
+            ttk.Button(bottom_bar, text=symbol, width=3, command=insert_symbol).pack(side="left", padx=1, pady=2)
 
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill="both", expand=True)
@@ -506,58 +408,184 @@ class NotebookIDE:
         self.tabs = []
         self.new_tab()
 
+    def load_state(self):
+        try:
+            if self.state_path.exists():
+                data = json.loads(self.state_path.read_text(encoding="utf-8"))
+                self.recent_files = [p for p in data.get("recent_files", []) if isinstance(p, str)]
+                self.project_folders = [p for p in data.get("project_folders", []) if isinstance(p, str)]
+        except Exception:
+            self.recent_files = []
+            self.project_folders = []
+
+    def save_state(self):
+        data = {
+            "recent_files": self.recent_files[:10],
+            "project_folders": self.project_folders[:20],
+        }
+        try:
+            self.state_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def on_close(self):
+        self.save_state()
+        self.root.destroy()
+
     def current_tab(self):
+        if not self.tabs:
+            return None
         current = self.notebook.nametowidget(self.notebook.select())
         for tab in self.tabs:
             if tab.frame == current:
                 return tab
         return None
-    
-        
-    def new_tab(self):
+
+    def new_tab(self, title=None):
         tab = EditorTab(self.notebook, self.theme)
         self.tabs.append(tab)
-        self.notebook.add(tab.frame, text=f"File {len(self.tabs)}")
+        self.notebook.add(tab.frame, text=title or f"File {len(self.tabs)}")
         self.notebook.select(tab.frame)
-
-        sample = """"""
-        tab.set_text(sample)
+        tab.set_text("")
+        return tab
 
     def highlight_active(self):
         tab = self.current_tab()
         if tab:
             tab.on_change()
 
-    def open_file(self):
-        path = filedialog.askopenfilename(
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*"), ("Npp files", "*.npp")]
-        )
-        if not path:
-            return
-
+    def _read_file(self, path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                data = f.read()
+                return f.read()
+        except UnicodeDecodeError:
+            with open(path, "r", encoding="latin-1") as f:
+                return f.read()
+
+    def _display_name(self, path):
+        path_obj = Path(path)
+        if len(str(path_obj)) <= 45:
+            return str(path_obj)
+        return f"...{os.sep}{path_obj.name}"
+
+    def _set_tab_title(self, tab, path):
+        self.notebook.tab(tab.frame, text=Path(path).name)
+
+    def add_recent_file(self, path):
+        path = str(Path(path))
+        self.recent_files = [p for p in self.recent_files if p != path]
+        self.recent_files.insert(0, path)
+        self.recent_files = self.recent_files[:10]
+        self.save_state()
+
+    def add_project_folder(self, path):
+        path = str(Path(path))
+        self.project_folders = [p for p in self.project_folders if p != path]
+        self.project_folders.insert(0, path)
+        self.project_folders = self.project_folders[:20]
+        self.save_state()
+
+    def remove_project_folder(self, path):
+        self.project_folders = [p for p in self.project_folders if p != path]
+        self.save_state()
+
+    def pick_project_folder(self):
+        folder = filedialog.askdirectory(title="Choose Project Folder")
+        if folder:
+            self.add_project_folder(folder)
+
+    def open_file_from_folder(self, folder):
+        folder = str(folder)
+        if not os.path.isdir(folder):
+            messagebox.showerror("Project folder", "That folder no longer exists.")
+            self.remove_project_folder(folder)
+            return
+
+        path = filedialog.askopenfilename(
+            title="Open from Project Folder",
+            initialdir=folder,
+            filetypes=[
+                ("Text files", "*.txt"),
+                ("Python files", "*.py"),
+                ("JSON files", "*.json"),
+                ("Markdown", "*.md"),
+                ("All files", "*.*"),
+                ("Npp files", "*.npp"),
+            ],
+        )
+        if path:
+            self.load_file_into_new_tab(path)
+
+    def open_selected_recent_file(self, path):
+        if not os.path.exists(path):
+            messagebox.showerror("Recently open files", "That file no longer exists.")
+            self.recent_files = [p for p in self.recent_files if p != path]
+            self.save_state()
+            return
+        self.load_file_into_new_tab(path)
+
+    def load_file_into_new_tab(self, path):
+        try:
+            content = self._read_file(path)
         except Exception as e:
             messagebox.showerror("Open failed", str(e))
             return
 
-        tab = self.current_tab()
-        if tab is None:
-            self.new_tab()
-            tab = self.current_tab()
+        tab = self.new_tab(title=Path(path).name)
+        tab.set_text(content)
+        tab.filepath = path
+        self._set_tab_title(tab, path)
+        self.add_recent_file(path)
 
-        tab.set_text(data)
-        self.notebook.tab(self.notebook.select(), text=path.split("/")[-1])
+    def open_file(self):
+        initialdir = self.project_folders[0] if self.project_folders and os.path.isdir(self.project_folders[0]) else None
+        path = filedialog.askopenfilename(
+            title="Open File",
+            initialdir=initialdir,
+            filetypes=[
+                ("Text Files", "*.txt"),
+                ("Python Files", "*.py"),
+                ("JSON Files", "*.json"),
+                ("Markdown", "*.md"),
+                ("All Files", "*.*"),
+                ("Npp Files", "*.npp"),
+            ],
+        )
+        if not path:
+            return
+        self.load_file_into_new_tab(path)
 
     def save_file(self):
         tab = self.current_tab()
         if tab is None:
             return
 
+        if tab.filepath is None:
+            return self.save_as()
+
+        try:
+            with open(tab.filepath, "w", encoding="utf-8") as f:
+                f.write(tab.get_text())
+            self._set_tab_title(tab, tab.filepath)
+            self.add_recent_file(tab.filepath)
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e))
+
+    def save_as(self):
+        tab = self.current_tab()
+        if tab is None:
+            return
+
         path = filedialog.asksaveasfilename(
             defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*"), ("Npp files", "*.npp")]
+            filetypes=[
+                ("Text files", "*.txt"),
+                ("Python files", "*.py"),
+                ("JSON files", "*.json"),
+                ("Markdown", "*.md"),
+                ("All files", "*.*"),
+                ("Npp files", "*.npp"),
+            ],
         )
         if not path:
             return
@@ -565,9 +593,102 @@ class NotebookIDE:
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(tab.get_text())
-            self.notebook.tab(self.notebook.select(), text=path.split("/")[-1])
+            tab.filepath = path
+            self._set_tab_title(tab, path)
+            self.add_recent_file(path)
         except Exception as e:
             messagebox.showerror("Save failed", str(e))
+
+    def _open_in_system_file_manager(self, folder):
+        folder = str(folder)
+        if not os.path.isdir(folder):
+            messagebox.showerror("Project folder", "That folder no longer exists.")
+            self.remove_project_folder(folder)
+            return
+
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(folder)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as e:
+            messagebox.showerror("Open folder", str(e))
+
+    def show_menu(self):
+        menu = tk.Menu(
+            self.root,
+            tearoff=0,
+            bg="#1f1f1f",
+            fg="white",
+            activebackground="#007acc",
+            activeforeground="white",
+        )
+
+        file_menu = tk.Menu(menu, tearoff=0, bg="#1f1f1f", fg="white", activebackground="#007acc", activeforeground="white")
+        file_menu.add_command(label="New Tab", command=self.new_tab)
+        file_menu.add_command(label="Open File...", command=self.open_file)
+        file_menu.add_command(label="Save", command=self.save_file)
+        file_menu.add_command(label="Save As...", command=self.save_as)
+        menu.add_cascade(label="File", menu=file_menu)
+
+        project_menu = tk.Menu(menu, tearoff=0, bg="#1f1f1f", fg="white", activebackground="#007acc", activeforeground="white")
+        project_menu.add_command(label="Project folder picker...", command=self.pick_project_folder)
+        project_menu.add_command(label="Open folder in file manager", command=lambda: self._open_last_project_folder())
+        project_menu.add_separator()
+
+        folders_menu = tk.Menu(project_menu, tearoff=0, bg="#1f1f1f", fg="white", activebackground="#007acc", activeforeground="white")
+        if self.project_folders:
+            for folder in self.project_folders:
+                folder_menu = tk.Menu(
+                    folders_menu,
+                    tearoff=0,
+                    bg="#1f1f1f",
+                    fg="white",
+                    activebackground="#007acc",
+                    activeforeground="white",
+                )
+                folder_menu.add_command(label="Open file from this folder...", command=lambda f=folder: self.open_file_from_folder(f))
+                folder_menu.add_command(label="Open folder in file manager", command=lambda f=folder: self._open_in_system_file_manager(f))
+                folder_menu.add_command(label="Remove folder", command=lambda f=folder: self.remove_project_folder(f))
+                folders_menu.add_cascade(label=self._display_name(folder), menu=folder_menu)
+        else:
+            folders_menu.add_command(label="No project folders yet", state="disabled")
+        project_menu.add_cascade(label="Project folders", menu=folders_menu)
+        project_menu.add_command(label="Clear project folders", command=self._clear_project_folders)
+        menu.add_cascade(label="Projects", menu=project_menu)
+
+        recent_menu = tk.Menu(menu, tearoff=0, bg="#1f1f1f", fg="white", activebackground="#007acc", activeforeground="white")
+        if self.recent_files:
+            for path in self.recent_files:
+                recent_menu.add_command(label=self._display_name(path), command=lambda p=path: self.open_selected_recent_file(p))
+        else:
+            recent_menu.add_command(label="No recent files yet", state="disabled")
+        recent_menu.add_separator()
+        recent_menu.add_command(label="Clear recent files", command=self._clear_recent_files)
+        menu.add_cascade(label="Recently open files", menu=recent_menu)
+
+        try:
+            x = self.menu_button.winfo_rootx()
+            y = self.menu_button.winfo_rooty() + self.menu_button.winfo_height()
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def _clear_recent_files(self):
+        self.recent_files = []
+        self.save_state()
+
+    def _clear_project_folders(self):
+        self.project_folders = []
+        self.save_state()
+
+    def _open_last_project_folder(self):
+        if not self.project_folders:
+            messagebox.showinfo("Project folders", "No project folders have been added yet.")
+            return
+        self._open_in_system_file_manager(self.project_folders[0])
 
 
 if __name__ == "__main__":

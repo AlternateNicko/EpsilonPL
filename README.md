@@ -9,7 +9,6 @@
 ![GitHub Release Date](https://img.shields.io/github/release-date/AlternateNicko/Nplang)
 
 
-
 ___
 # About
 ___

@@ -133,7 +133,7 @@ class NPP:
         
         # LIBRARIES
         self.nplibs = special_library
-        self.libraries = ["math", "time", "random", "smart", "sys", "files", "os"] # libraries, these are built ins
+        self.libraries = ["math", "time", "random", "smart", "sys", "files", "os", "debug"] # libraries, these are built ins
         self.libraries.extend(list(special_library.keys()))
         self.library = [] # library names will be appended here once they are imported
         self.nplibs_acc = {key: False for key in self.nplibs.keys()}
@@ -151,7 +151,9 @@ class NPP:
         self.bif = ["num", "input", "eval", "exec", "length", "sort", "min", "mean", "max", "median", "mode", "sum", "range", "call", "reverse", "type", "format",
             "zip", "dict", "map"
         ] # for eval to know if the expression they are evaluating has the languages codes
-        self.bim = [] # this one is for methods
+        self.bim = ["cap", "low", "as", "rem", "strip", "split", "hasprefix", "hassuffix", "replace", "slice", "pop", "push", "read", "keys", "values", "items", "const",
+            "unconst",
+        ] # this one is for methods
         self.forbiden_chars = [" ", "'", '"', "(", ")", "[", "]", "{", "}", "~", "`", "@", "*", "+", "<", ">", "%", "#", "!", "?", ",", ":", ";", "/"] # characters forbiden to non string names
         
         # IDENTIFIERS
@@ -189,6 +191,7 @@ class NPP:
         self.sync_variables = {} # supports multiple syncronized variables instead of one
         self.func_scope = {} # contains the variables and other user defined values like functions and classes
         self.special = {} # for OOP, protected/static variables or attributes
+        self.public = {} # public variables, this is permanentaly stored unless "private" intercepts it
         self.cache = {
             "eval": {}, # for evaluation
             "func": {},
@@ -211,11 +214,6 @@ class NPP:
             'QuitError': False
         }
         
-        # Pre load variables
-        self.variables["<file>"] = self.file_name
-        self.variables["<path>"] = str(self.path)
-        self.variables["<libraries>"] = self.library
-        self.variables["<null>"] = None
         
     def single_eval(self, expression, globals=None, locals=None):
         # evaluates one expression
@@ -279,8 +277,10 @@ class NPP:
                 if bool(re.search(pattern, expression)) and istrue:
                     execution = True
                 elif not bool(re.search(pattern, expression)) and istrue:
-                    execution = True
-                    methods = True
+                    split_arg = expression.split(".", 1)
+                    if True in [i in split_arg[1] for i in self.bim]: # double checks methods
+                        execution = True
+                        methods = True
             for i in self.bif: #
                 if i in expression:
                     if "." + i in expression:
@@ -607,6 +607,7 @@ class NPP:
         based on the sync mode, and values of the synced variables.
         There would be more uses in the near future
         """
+        
         for v in self.variables.keys():
             if self.in_class[1] and v in self.special[self.in_class[0]]["variables"].keys() and self.special[self.in_class[0]]["variables"][v]:
                 self.classes[self.in_class[0]]["variables"][v] = self.variables[v]
@@ -618,13 +619,15 @@ class NPP:
                 self.constants[v] = [True, self.variables[v]]
             if self.variables[v] != self.constants[v][1]:
                 self.constants[v][0] = False
-            
             self.constants[v][1] = self.variables[v]
+        # class variables
         if self.in_class[1] and self.in_class[2] is not None and self.in_class[2] in self.objects.keys():
             self.objects[self.in_class[2]]["variables"]["<dict>"].update(self.objects[self.in_class[2]]["variables"])
         elif self.in_class[1]:
             self.classes[self.in_class[0]]["variables"]["<dict>"].update(self.classes[self.in_class[0]]["variables"])
-
+        
+        # public variables
+        self.variables.update(self.public)
         self.global_var.update(self.variables)
         
         # for sync variables
@@ -1120,6 +1123,7 @@ class NPP:
         self.exec_block(code, count)
         self.global_vars()
         self.variables = self.original_var
+        self.variables.update(self.public)
         self.in_func -= 1
         if infunc:
             if self.func_name in self.func_scope.keys():
@@ -1167,6 +1171,7 @@ class NPP:
         self.traceback[m_name] = self.og_c
         self.original_var = self.variables.copy()
         og_var = self.variables.copy()
+        self.variables = {}
         if object:
             self.variables = self.objects[object_name]["variables"].copy()
         else:
@@ -1681,7 +1686,7 @@ class NPP:
                 type = "priv"
             
             # Function or variables
-            if not instruction.startswith("func ") and "=" in instruction: # meaning it's a variable
+            if not instruction.startswith("func ") and "=" in instruction: # meaning it's a variable assignment
                 arg = instruction.split("=", 1)
                 name = arg[0].strip()
                 value = self.eval(arg[1].strip(), {}, self.variables)
@@ -1690,8 +1695,24 @@ class NPP:
                     self.special[self.in_class[0]]["variables"][name] = True
                 elif type == "priv" and self.in_class[1]:
                     self.special[self.in_class[0]]["variables"][name] = False
+                elif type == "pub":
+                    self.public[name] = value # stored into public
+                elif type == "priv" and name in self.public.keys():
+                    del self.public[name]
                 self.process_vars()
-                    
+            
+            elif not instruction.startswith("func ") and instruction in self.variables.keys(): # not assignments
+                name = instruction
+                if type == "pub" and self.in_class[1]:
+                    self.special[self.in_class[0]]["variables"][name] = True
+                elif type == "priv" and self.in_class[1]:
+                    self.special[self.in_class[0]]["variables"][name] = False
+                elif type == "pub":
+                    self.public[name] = self.variables[name]
+                elif type == "priv" and name in self.public.keys():
+                    del self.public[name]
+                self.process_vars()
+            
             elif instruction.startswith('func '):
                 # user define function
                 # example: `func main(arg1, arg2):`
@@ -2149,7 +2170,7 @@ class NPP:
             types = convert[types]
             file = self.eval(file, {}, self.variables)
             if not file.startswith("$/"): # starting
-                file = self.path + "/" + file
+                file = self.path / file
             else:
                 file = file[1:].strip()
             self.variables[name] = open(file, types)

@@ -1,0 +1,32 @@
+class Duck {
+    public func <const>(name, age) {
+        public name = name
+        public age = age
+    }
+    
+    public func quack() {
+        output(f("{name} says quack!"))
+    }
+    
+    public func bio() {
+        output(f("Duck's name is {name} and is {age} years old"))
+    }
+}
+
+class RubberDuck(Duck) {
+    public func <const>(name, age) {
+        inherit <const>(name, age) from Duck
+        public name = name
+        public age = age
+    }
+    
+    public func quack() {
+        output(f("{name} says squeek!"))
+    }
+}
+
+duck = Duck("Adam", 6)
+rubber = RubberDuck("Billy", 3)
+
+call duck.quack()
+call rubber.quack()

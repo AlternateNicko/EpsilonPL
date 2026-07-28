@@ -1,0 +1,13 @@
+import file
+
+metadata = {
+    "a": 10,
+    "b": 20,
+    "c": 30,
+}
+
+open "test.json" write as filez
+
+file.dump(metadata, filez)
+
+filez.close()

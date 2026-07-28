@@ -1,0 +1,6 @@
+cnt = 0
+
+while (cnt != 1000) {
+    cnt = cnt + 1
+    output(cnt)
+}

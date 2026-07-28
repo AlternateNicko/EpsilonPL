@@ -1,7 +1,0 @@
-attempt {
-    test_variable = 0 / 0
-}
-catch ZeroDivisionError
-{
-    output("I catched something")
-}

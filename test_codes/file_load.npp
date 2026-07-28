@@ -1,9 +1,0 @@
-import file
-
-open "test.json" read as filez
-
-loaded = file.load(filez)
-
-output(loaded["a"])
-output(loaded["b"])
-output(loaded["c"])

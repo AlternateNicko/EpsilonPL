@@ -1,17 +1,17 @@
-![Static Badge](https://img.shields.io/badge/Nlang_npp-text)
-![GitHub Release](https://img.shields.io/github/v/release/AlternateNicko/Nplang)
-![GitHub Created At](https://img.shields.io/github/created-at/AlternateNicko/Nplang)
-![GitHub commits since latest release](https://img.shields.io/github/commits-since/AlternateNicko/Nplang/latest)
-![GitHub last commit](https://img.shields.io/github/last-commit/AlternateNicko/Nplang)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/AlternateNicko/Nplang/total)
-![GitHub top language](https://img.shields.io/github/languages/top/AlternateNicko/Nplang)
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/AlternateNicko/Nplang)
-![GitHub Release Date](https://img.shields.io/github/release-date/AlternateNicko/Nplang)
+![Static Badge](https://img.shields.io/badge/Epsilon--programming--language-text)
+![GitHub Release](https://img.shields.io/github/v/release/AlternateNicko/EpsilonPL)
+![GitHub Created At](https://img.shields.io/github/created-at/AlternateNicko/EpsilonPL)
+![GitHub commits since latest release](https://img.shields.io/github/commits-since/AlternateNicko/EpsilonPL/latest)
+![GitHub last commit](https://img.shields.io/github/last-commit/AlternateNicko/EpsilonPL)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/AlternateNicko/EpsilonPL/total)
+![GitHub top language](https://img.shields.io/github/languages/top/AlternateNicko/EpsilonPL)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/AlternateNicko/EpsilonPL)
+![GitHub Release Date](https://img.shields.io/github/release-date/AlternateNicko/EpsilonPL)
 ___
 # About
 ___
 
-Nlang (or N++, Npp) is a transpiled language writen in python.
+Epsilon (or Eps) is a transpiled language writen in python.
 It is a high level, simple programming language, a project that I have been doing for over a year as a hobby.
 Due to sophisticated syntaxes and many supports, I've decided to make it public
 
@@ -158,39 +158,39 @@ and "variable" as the variable name
 ___
 # Setup
 ___
-The setup is simple, you can open up NppIDE.py for a quicker coding, or NppIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .npp, or .nxx, a file extension for Nlang
+The setup is simple, you can open up NBIIDE.py for a quicker coding, or NBIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .eps, a file extension for Nlang
 then at npp_interactive_shell, type
-`N++ your_file.npp`
-to setup Nlang, you have to first make a .py python program outside of the directory where Nlang (NPP) is stored.
+`N++ your_file.eps`
+to setup Nlang, you have to first make a .py python program outside of the directory where Epsilon (EPS) is stored.
 then write this code
 ```python
-from Npp.npp import NPP
+from EpsilonPL.epsilon import EPS
 
 instructions = """
 // put your code here
 """
 module = {}
-npp = NPP(instructions, module)
-results = npp.execute()
+eps = EPS(instructions, module)
+results = eps.execute()
 ```
 • Key pointers of this code
-  1. from Npp.npp import NPP - if Npp in "from Npp.npp..." is a different name, change it immidietly
+  1. from EpsilonPL.epsilon import EPS - if EpsilonPL in "from EpsilonPL.epsilon..." is a different name, change it immidietly
   2. instructions - must be a doc string
   3. module dictionary - this is where special libraries are stored inside /library directory.
-  4. NPP class - the class always expects 1 or 2 arguments, the most important is the "instructions" argument, module argument is optional if you didn't include any libraries from /library directory
-  5. npp.execute() - doesn't actually need variable assignments.
+  4. EPS class - the class always expects 1 or 2 arguments, the most important is the "instructions" argument, module argument is optional if you didn't include any libraries from /library directory
+  5. eps.execute() - doesn't actually need variable assignments.
 
 for simple debugging, write this on top of the code
 ```python
-from Npp.npp import ndebug
+from Epsilon.edebug import debug
 ```
 then do
 ```python
-npp = NPP(instructions) # or where NPP() gets defined, the code in the following must be added after npp
+eps = EPS(instructions) # or where NPP() gets defined, the code in the following must be added after eps
 ndb = ndebug(True) # False for debug mode off
-ndb.print_init(npp) # The first print, this prints the variables and values and information
-ndb.print_functions(npp) # prints out the each functions, what their code block is, arguments, and information
-ndb.print_classes(npp) # prints out the classes and its attributes, methods, and inherited class
+ndb.print_init(eps) # The first print, this prints the variables and values and information
+ndb.print_functions(eps) # prints out the each functions, what their code block is, arguments, and information
+ndb.print_classes(eps) # prints out the classes and its attributes, methods, and inherited class
 ```
 
 • This is usefull for simply debugging after code execution to check informations about the program and any issues that needed to be fixed
@@ -199,8 +199,8 @@ And For special modules in /library, do this
 data_lib for example
 
 ```python
-from Npp.npp import NPP
-from Npp.library.data_lib import class_module
+from EpsilonPL.epsilon import NPP
+from EpsilonPL.library.data_lib import class_module
 
 instructions = """
 // put your code here
@@ -209,20 +209,21 @@ module = {
     "datalib": class_module,
     ...
 }
-npp = NPP(instructions, module)
-results = npp.execute()
+eps = EPS(instructions, module)
+results = eps.execute()
 ```
 
 • key pointers:
 - module must have a key with a string, and a name that will be used as the name of the library inside Npp libraries
-- "from Npp.library.data_lib" must be imported, and must be the main class
+- Directory must match (if the downloaded github .zip file has a different name, change the name to EpsilonPL)
+- "from EpsilonPL.library.data_lib" must be imported, and must be the main class
 - the module must have the value as a instance of the class object, and don't run the class initialize method
 
 • Where to find example?
 - Check out `built_in_libraries` for example, it uses the same layout, but mostly coded for multiple libraries parsing
 
 ___
-# Example Npp Codes
+# Example EPS Codes
 ___
 
 • Simple Syntax Examples
@@ -348,20 +349,20 @@ ___
 ___
 - This code was first developed around November of 2024, Where I only had been learning python for about 3 months.
 - This transpiled language is a hobby language and project, This project was develop with the purpose of teaching me more about python, programming, debugging, and more
-- There are parts of the Npp source code that were written a year ago, where codes weren't structured properly, and some were written a few months ago, when I finally came back to work on to this language, which are structured neatly while still following the design of the program when i first written it.
+- There are parts of the Epsilon source code that were written a year ago, where codes weren't structured properly, and some were written a few months ago, when I finally came back to work on to this language, which are structured neatly while still following the design of the program when i first written it.
 ___
 # What to expect
 ___
 - you should expect tons of bugs, errors, and parsing problems. This language is still not bug free
 - The language is getting bug fixes and development everyday, updates frequently every week, but sometimes it won't be quick, as I (main contributor) am also busy with other things.
 - Most updates are bug fixes, andmajor updates only drops whenever there are minimal bugs left that doesn't occur majorly in most programs
-- Npp version 2 might take months or years, as I have plans to rewrite everything all with my current knowledge in programming.
+- Epsilon version 2 might take months or years, as I have plans to rewrite everything all with my current knowledge in programming.
 - Testing takes long, as most tests works while some tests doesn't. Each tests are npp test programs, most of the time, I always test after debugging, some of these programs works, while others doesn't. So some bug fixes makes little difference
 ___
 # Updates
 ___
-"npp.py" is where the main source code is located.
+"epsilon.py" is where the main source code is located.
 Npp gets updates every 1-2 weeks for bug fixes, monthly for features
 
-• Minor updates - Nplang will get small features and bug fixes with this updates, Minor updates also includes updates outside of npp.py, built in libraries, or others will also get updates.
-• Major updates - Nplang gets updates that includes huge features, additions, bug fixes, and even reworks. These updates are mostly rare, sometimes just every few months or a year if I have the time. This type of update is important as it could majorly improve speed, optimizations, future development, or syntaxes.
+• Minor updates - Epsilon will get small features and bug fixes with this updates, Minor updates also includes updates outside of npp.py, built in libraries, or others will also get updates.
+• Major updates - Epsilon gets updates that includes huge features, additions, bug fixes, and even reworks. These updates are mostly rare, sometimes just every few months or a year if I have the time. This type of update is important as it could majorly improve speed, optimizations, future development, or syntaxes.

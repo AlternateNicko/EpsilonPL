@@ -1,1 +1,0 @@
-{"type": "benchmark", "code": "\ncnt = 0\n\nwhile (cnt != 10000)\n{\n    cnt = cnt + 1\n    output(cnt)\n}\n", "expected": "<any>", "speed": 5.5, "functionality": 100, "errors": false, "syntax": false}

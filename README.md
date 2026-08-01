@@ -15,7 +15,7 @@ Epsilon (or Eps) is a transpiled language writen in python.
 It is a high level, simple programming language, a project that I have been doing for over a year as a hobby.
 Due to sophisticated syntaxes and many supports, I've decided to make it public
 
-Nlang includes an easy to read syntax, mainly from python type keywords and C++ like syntaxes.
+Epsilon includes an easy to read syntax, mainly from python type keywords and C++ like syntaxes.
 Simple language features like declarations, instances, keywords, built ins, and OOP.
 And many more features Nlang includes,
 The followings are:
@@ -30,7 +30,7 @@ The followings are:
 - unique built ins
 - value types like str, int, float, list, tuple, dict, set
 
-Nlang source code is written in Python
+Epsilon's source code is written in Python
 
 
 ___
@@ -127,8 +127,8 @@ class Child_class(Parent_class1, Parentclass2, ...)
 ___
 # Libraries
 ___
-Nlang supports custom user built libraries that it can add within the code, and treats it as one
-This can be either importing .npp codes
+Epsilon supports custom user built libraries that it can add within the code, and treats it as one
+This can be either importing .eps codes
 or building your own library (in /library directory) which uses python programs or even deeper, any type of program as long as it follows these instructions
 ```python
 #add this code to /library directory
@@ -158,10 +158,10 @@ and "variable" as the variable name
 ___
 # Setup
 ___
-The setup is simple, you can open up NBIIDE.py for a quicker coding, or NBIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .eps, a file extension for Nlang
+The setup is simple, you can open up NBIDE.py for a quicker coding, or NBIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .eps, a file extension for Nlang
 then at npp_interactive_shell, type
-`N++ your_file.eps`
-to setup Nlang, you have to first make a .py python program outside of the directory where Epsilon (EPS) is stored.
+`eps your_file.eps`
+to setup Epsilon, you have to first make a .py python program outside of the directory where Epsilon (EPS) is stored.
 then write this code
 ```python
 from EpsilonPL.epsilon import EPS

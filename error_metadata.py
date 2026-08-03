@@ -292,5 +292,5 @@ code = {
     # Newly added, 70 and above
 }
 
-with open("EpsilonPL/error.json", "w") as file:
+with open("errormd.json", "w") as file:
     json.dump(code, file)

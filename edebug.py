@@ -76,7 +76,7 @@ class debug():
             return
         self.eps = code
         print(f"\n\n—Debug—————————————————————————————————————————————————————————\
-        \n DEB: [ File path: {self.eps.path / Path(self.eps.file_name).with_suffix('.eps')} ]\
+        \n DEB: [ File path: {self.eps.path / Path(self.eps.file_name).with_suffix(self.eps.file_extension)} ]\
         \nDEB: [ Variables:")
         for i in self.eps.variables:
             print(f"{str(self.eps.constants[i][0]):<5} {str(self.types(self.eps.variables[i])):<5} {str(i)+':':<10}{str(self.eps.variables[i])}")

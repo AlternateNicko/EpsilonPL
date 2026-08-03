@@ -13,7 +13,7 @@ class handle:
         self.file_extension = file_extension
         self.og_c = og_c
         self.cnt = cnt
-        with open("Npp/error.json", "r") as file:
+        with open("EpsilonPL/errormd.json", "r") as file:
             self.meta = json.load(file)
             # this is a file that contains each error codes and outputs.
     

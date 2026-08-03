@@ -148,7 +148,7 @@ class any_library_name:
             self.one_line_instruction(line)
 ```
 Important notices
-- self.process() must be always defined as Npp expects a method named process() with 2 arguments, line and variant.
+- self.process() must be always defined as Epsilon expects a method named process() with 2 arguments, line and variant.
 - variants are 2 types,
 - 1. "av" means Assign to Variable, this is defined when there is a code like this
 `variable = library.method()`
@@ -159,7 +159,7 @@ ___
 # Setup
 ___
 The setup is simple, you can open up NBIDE.py for a quicker coding, or NBIDE.html for a detailed IDE, both are simple notebook like IDE (doesn't execute), then after writing the code, save it as .eps, a file extension for Nlang
-then at npp_interactive_shell, type
+then at interactive_shell, type
 `eps your_file.eps`
 to setup Epsilon, you have to first make a .py python program outside of the directory where Epsilon (EPS) is stored.
 then write this code
@@ -186,7 +186,7 @@ from Epsilon.edebug import debug
 ```
 then do
 ```python
-eps = EPS(instructions) # or where NPP() gets defined, the code in the following must be added after eps
+eps = EPS(instructions) # or where EPS() gets defined, the code in the following must be added after eps
 ndb = ndebug(True) # False for debug mode off
 ndb.print_init(eps) # The first print, this prints the variables and values and information
 ndb.print_functions(eps) # prints out the each functions, what their code block is, arguments, and information
@@ -199,7 +199,7 @@ And For special modules in /library, do this
 data_lib for example
 
 ```python
-from EpsilonPL.epsilon import NPP
+from EpsilonPL.epsilon import EPS
 from EpsilonPL.library.data_lib import class_module
 
 instructions = """
@@ -214,7 +214,7 @@ results = eps.execute()
 ```
 
 • key pointers:
-- module must have a key with a string, and a name that will be used as the name of the library inside Npp libraries
+- module must have a key with a string, and a name that will be used as the name of the library inside Epsilon libraries
 - Directory must match (if the downloaded github .zip file has a different name, change the name to EpsilonPL)
 - "from EpsilonPL.library.data_lib" must be imported, and must be the main class
 - the module must have the value as a instance of the class object, and don't run the class initialize method
@@ -357,12 +357,12 @@ ___
 - The language is getting bug fixes and development everyday, updates frequently every week, but sometimes it won't be quick, as I (main contributor) am also busy with other things.
 - Most updates are bug fixes, andmajor updates only drops whenever there are minimal bugs left that doesn't occur majorly in most programs
 - Epsilon version 2 might take months or years, as I have plans to rewrite everything all with my current knowledge in programming.
-- Testing takes long, as most tests works while some tests doesn't. Each tests are npp test programs, most of the time, I always test after debugging, some of these programs works, while others doesn't. So some bug fixes makes little difference
+- Testing takes long, as most tests works while some tests doesn't. Each tests are Epsilon test programs, most of the time, I always test after debugging, some of these programs works, while others doesn't. So some bug fixes makes little difference
 ___
 # Updates
 ___
 "epsilon.py" is where the main source code is located.
 Epsilon gets updates every 1-2 weeks for bug fixes, monthly for features
 
-• Minor updates - Epsilon will get small features and bug fixes with this updates, Minor updates also includes updates outside of npp.py, built in libraries, or others will also get updates.
+• Minor updates - Epsilon will get small features and bug fixes with this updates, Minor updates also includes updates outside of Epsilon.py, built in libraries, or others will also get updates.
 • Major updates - Epsilon gets updates that includes huge features, additions, bug fixes, and even reworks. These updates are mostly rare, sometimes just every few months or a year if I have the time. This type of update is important as it could majorly improve speed, optimizations, future development, or syntaxes.

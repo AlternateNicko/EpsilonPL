@@ -5,8 +5,10 @@ from typing import Any, Dict, Union, List, Tuple, Set
 import os
 import copy
 import sys as system
+import time
 from pathlib import Path
 
+# this fix circular imports
 if "EpsilonPL" not in system.path:
     system.path.append("EpsilonPL")
     from built_in_libraries import libraries
@@ -140,13 +142,19 @@ class EPS:
         self.library = [] # library names will be appended here once they are imported
         self.nplibs_acc = {key: False for key in self.nplibs.keys()}
         
+        # FOR LIBRARIES
+        self.debug = False
+        self.adv_debug = False
+        self.debug_wait = 0
+        self.adv_debug_wait = 0
+        
         # IMPORTANTS
         self.Instructions = instructions.split("\n")# main instruction line gets split line by line
         self.variables = {} # all the variables are stored here
         self.cnt = 0 # the main pointer to the line of code
         self.traceback = {"<module>": self.cnt} # the traceback, tracing back to where errors originate
         self.classes = {} # name: {methods: {method name: same as funcs}, variables: {name: value}, inheritence: [class name]
-        self.og_c = 0 # the count, but the count where the pointer is pointing at, and not changed by any parsing actions
+        self.og_c = 0 # the count, but the count where the pointer is pointingj at, and not changed by any parsing actions
         self.return_val = None # return value
         
         # EVALUATIONS
@@ -169,7 +177,6 @@ class EPS:
         self.condition = False # for the if, else if statement, turns true once their condition is also true
         self.attempt = False # for try-except, but in this language is attempt-catch, once attempting to execute a code, all errors wont print out a trace back, instead it gets catch if it matches with the error name of the catch block
         self.in_class = [None, False, None] # if the program is currently in a code, first index stores the name of the class, the second shows True if they are in a class, third is what class objecf it is (None if it's inside a class) else False
-        self.arg = None # ngl idk what this is used for
         self.original_var = None # original variable once calling a new function, the self.variables are replace with a new dictionary, and original_var stores the global variables
         self.breaking = False # force break out loops
         self.evals = False # if it's currently evaluating something
@@ -251,7 +258,7 @@ class EPS:
             expr = self.expression(expression)
             if expr["iseval"]:
                 self.evals = False
-                return eval(str(expr["expr"]), {}, self.variables) # This only evaluates epsilon expression despite using python eval(),
+                return eval(str(expr["expr"]), globals, locals) # This only evaluates epsilon expression despite using python eval(),
                 # self.expression() uses epsilon approve and only syntax, doesn't include python codes'
             else:
                 expression = expr["expr"]
@@ -376,7 +383,6 @@ class EPS:
                         expression = self.variables["<<temporary_variable>>"]
                         expression = str(expression)
                         del self.variables["<<temporary_variable>>"]
-                        
         expression = str(expression)
         tree = ast.parse(expression.strip(), mode='eval') # parsing time
         evaluator = SafeEval(globals, locals)
@@ -509,19 +515,25 @@ class EPS:
     def execute(self):
         # main executer of the code, the start up
         while True:
-            # Check for errors
+            # Check for error
             if True in self.Errors.values() and not self.attempt:
                 return
             if self.cnt >= len(self.Instructions):
                 break # ends the program once the cnt reaches over the programs amount of line of code
             instruction = self.Instructions[self.cnt].strip()
             self.traceback["<module>"] = self.cnt
+            if self.debug or self.adv_debug:
+                self.run_injected_method("clear_debug_screen")
             if instruction is None or instruction == "ignore":
                 pass
             else:
-                result = self.execute_functions(instruction) # parses the single line of code
+                result = self.execute_functions(instruction)
+            
             if result != None:
-                print(result) # print results
+                print(result)
+                result = None
+            if self.debug or self.adv_debug:
+                self.run_injected_method("render_debug_interface", instruction=instruction)
             self.cnt += 1
             self.og_c += 1
         return
@@ -533,18 +545,24 @@ class EPS:
         original = self.Instructions
         was_in = True if self.in_func else False
         self.Instructions = code.split("\n")
-        
         while self.cnt < len(self.Instructions):
+            
             # Check for errors
             if True in self.Errors.values() and not self.attempt:
                 return
             instruction = self.Instructions[self.cnt].strip()
-            if instruction == "" or instruction is None or instruction == "ignore":
+            if self.debug or self.adv_debug:
+                print("\033c", end="")
+            if instruction is None or instruction == "ignore":
                 pass
             else:
                 result = self.execute_functions(instruction)
-                if result != None:
-                    print(result)
+            if result != None:
+                print(result)
+            if self.debug or self.adv_debug:
+                print("_" *27)
+                print("\n" * 5)
+                self.render_debug_interface(instruction)
             self.cnt += 1
             self.og_c += 1
             if self.in_func == 0 and was_in or self.is_return:
@@ -962,7 +980,7 @@ class EPS:
         if current:
             result.append(current.strip())
         return result
-    def special_split(self, line, split_str, in_char1, in_char2, ret_capture_group=False, limit=None):
+    def special_split(self, line, split_str, in_char1, in_char2, ret_capture_group=False, limit=None, ranges=[0, -1]):
         """
     splits a string into a list by using split()
     and only splits the characters that's outside of a specific character
@@ -978,6 +996,9 @@ class EPS:
     but... normal .split() can't do that
     so i did this
         """
+        start, end = ranges
+        end = len(line) if end == -1 else end + 1
+        line = line[start:end]
         new_line = ""
         inside_char = False
         i = 0
@@ -1018,8 +1039,7 @@ class EPS:
         if "¤" in new_line:
             return new_line.split("¤")
         return [new_line]
-    
-    def special_find(self, line, target, in_char1, in_char2):
+    def special_find(self, line, target, in_char1, in_char2, ranges=[0, -1]):
         """
         This function works like special_split, but it returns True or False if target_str is in the string
         only if it exist, and is not inside the chosen characters (in_chars1 for the start and in_chars2 for the end)
@@ -1027,6 +1047,9 @@ class EPS:
         
         this function fixes the bug in self.eval() about running a built in method inside as an argument of an built in function (or even user defined)
         """
+        start, end = ranges
+        end = len(line) if end == -1 else end + 1
+        line = line[start:end]
         inside_char = False
         i = 0
         if not isinstance(target, list):
@@ -1152,7 +1175,6 @@ class EPS:
         count_ogc = self.classes[name]["methods"][m_name]['end ogc']
         argument = provided_args
         self.special[name]["access"] = True
-        self.arg = arg
         self.cnt = 0
         self.og_c = ogc + 1
         self.func_name = name
@@ -1414,7 +1436,7 @@ class EPS:
                 while True:
                     count += 1
                     eogc += 1
-                    if count > len(self.Instructions[count]): break
+                    if count >= len(self.Instructions): break
                     if self.Instructions[count].strip().startswith('{') or self.Instructions[count].strip().endswith('{'):
                         self.in_block += 1
                     if self.Instructions[count].strip().startswith('}') and self.in_block > 0 or self.Instructions[count].strip().endswith('}') and self.in_block > 0:
@@ -1439,7 +1461,7 @@ class EPS:
                 while True:
                     count += 1
                     eogc += 1
-                    if count > len(self.Instructions[count]): break
+                    if count >= len(self.Instructions): break
                     if self.Instructions[count].strip().startswith('{'):
                         self.in_block += 1
                     if self.Instructions[count].strip().startswith('}') and self.in_block:
@@ -1482,7 +1504,7 @@ class EPS:
                         while True:
                             count += 1
                             eogc += 1
-                            if count > len(self.Instructions[count]): break
+                            if count >= len(self.Instructions): break
                             if self.Instructions[count].strip().startswith('{'):
                                 self.in_block += 1
                             elif self.Instructions[count].strip().startswith('}') and self.in_block:
@@ -1502,7 +1524,7 @@ class EPS:
                         while True:
                             count += 1
                             eogc += 1
-                            if count > len(self.Instructions[count]): break
+                            if count >= len(self.Instructions): break
                             if self.Instructions[count].strip().startswith('{'):
                                 self.in_block += 1
                             elif self.Instructions[count].strip().startswith('}') and self.in_block:
@@ -1549,8 +1571,6 @@ class EPS:
                 iterable = list(iterable)
             ogc = self.og_c
             block, count, eogc = self.get_block()
-            if not block:
-                quit()
             self.exec_fl += 1
             for cnt, val in enumerate(iterable):
                 self.variables[arg] = val
@@ -1623,7 +1643,7 @@ class EPS:
                     ending = self.cnt
                     if self.is_priv:
                         self.func_scope[self.og_fname]["functions"][name]['end'] = self.cnt
-                        self.func_scooe[self.og_fname]["functions"][name]['end ogc'] = self.og_c
+                        self.func_scope[self.og_fname]["functions"][name]['end ogc'] = self.og_c
                     elif self.is_pub:
                         self.func_scope[self.func_name]["functions"][name]['end'] = self.cnt
                         self.functions[self.func_name]["functions"][name]['end ogc'] = self.og_c
@@ -1691,7 +1711,7 @@ class EPS:
                 
         
         # error handling keywords
-        elif instruction.startswith('attempt'):
+        elif instruction.startswith("try"):
             # error handling by catching errors, with throw and catch and finally
             block, count, eogc = self.get_block()
             self.attempt = True
@@ -1895,12 +1915,35 @@ class EPS:
                     del self.variables[name] # so it doesn't delete the variable
         
         elif instruction.startswith("delete"):
-            arg = instruction[8:].strip()
-            if "[" in arg and not arg.startswith("[") and not arg.endswith("["):
-                arg = arg.lsplit("[", 1)
-                inst = arg[0]
-            if inst in self.variables.keys():
-                del self.variables[inst]
+            arg = instruction[7:].strip()
+            base, accessors = self.parse_delete_target(arg)
+        
+            if not accessors:
+                # plain name - could be a variable, function, or class
+                if base in self.variables:
+                    del self.variables[base]
+                elif base in self.functions:
+                    del self.functions[base]
+                elif base in self.classes:
+                    del self.classes[base]
+                else:
+                    self.error(18, base)
+                return
+        
+            if base not in self.variables:
+                self.error(18, base)
+                return
+        
+            current = self.variables[base]
+            try:
+                for accessor in accessors[:-1]:
+                    key = self.eval(accessor, {}, self.variables)
+                    current = current[key]
+                final_key = self.eval(accessors[-1], {}, self.variables)
+                del current[final_key]
+            except (KeyError, IndexError, TypeError):
+                self.error(14, base, len(current) if hasattr(current, "__len__") else "?", accessors[-1])
+                return
                 
         elif instruction.startswith("sync"):
             # syncronizes variables
@@ -2120,37 +2163,66 @@ class EPS:
                     key = self.name_library[struct[0]]
                     module = self.nplibs[key]
                     lib = module(**self.__dict__)
-                    result = lib.process(instruction, variant="ol")
+                    result = lib.process(instruction, self.variables, variant="ol")
                     if result == [] or result is None:
                         return
                     if len(result) > 0:
-                        self.variables = result[0]
-                    if len(result) > 1:
+                        if not result[0].startswith("$<<"):
+                            if result[0] == "$<<SELF EVAL>>":
+                                self.eval_deb = not self.eval_deb
+                            elif result[0] == "$<<DEBUGGED>>":
+                                wait_time = result[1] if len(result) > 1 else 0
+                                if self.debug:
+                                    self.debug = False
+                                else:
+                                    self.adv_debug = False
+                                    self.debug = True
+                                    self.debug_wait = wait_time
+                            elif result[0] == "$<<ADV_DEBUGGED>>":
+                                wait_time = result[1] if len(result) > 1 else 0
+                                if self.adv_debug:
+                                    self.adv_debug = False
+                                else:
+                                    self.debug = False
+                                    self.adv_debug = True
+                                    self.adv_debug_wait = wait_time
+                            self.variables = result[0]
+                            if len(result) > 1:
+                                self.cnt = result[1]  
+                        else:
+                            pass
+                    if len(result) > 1 and result[0] != "$<<DEBUGGED>>" and result[0] != "$<<ADV_DEBUGGED>>":
                         self.cnt = result[1]
                     return
                 lib = libraries(**self.__dict__)
-                result = lib.process(instruction, t, m, r, json, sys, variant="ol")
+                result = lib.process(instruction, self.variables, t, m, r, json, sys, variant="ol")
                 if result == [] or result is None:
                     return
                 
                 if len(result) > 0:
-                    if not result[0].startswith("$<<"):
+                    if isinstance(result[0], str) and not result[0].startswith("$<<"):
                         self.variables = result[0]
+                        if len(result) > 1:
+                            self.cnt = result[1]          # only jumps for real (non-sentinel) results
                     else:
-                        if result[0] == "$<<SELF EVAL>>" and not self.eval_deb:
-                            self.eval_deb = True
-                        elif result[0] == "$<<SELF EVAL>>" and self.eval_debs:
-                            self.eval_deb = False
-                        elif result[0] == "$<<DEBUGGED>>" and not self.debug:
-                            self.debug = True
-                        elif result[0] == "$<<DEBUGGED>>" and self.debug:
-                            self.debug = False
-                        elif result[0] == "$<<ADV_DEBUGGED>>" and not self.adv_debug:
-                            self.debug = True
-                        elif result[0] == "$<<ADV_DEBUGGED>>" and self.adv_debug:
-                            self.debug = False
-                if len(result) > 1:
-                    self.cnt = result[1]
+                        if result[0] == "$<<SELF EVAL>>":
+                            self.eval_deb = not self.eval_deb
+                        elif result[0] == "$<<DEBUGGED>>":
+                            wait_time = result[1] if len(result) > 1 else 0
+                            if self.debug:
+                                self.debug = False
+                            else:
+                                self.adv_debug = False
+                                self.debug = True
+                                self.debug_wait = wait_time
+                        elif result[0] == "$<<ADV_DEBUGGED>>":
+                            wait_time = result[1] if len(result) > 1 else 0
+                            if self.adv_debug:
+                                self.adv_debug = False
+                            else:
+                                self.debug = False
+                                self.adv_debug = True
+                                self.adv_debug_wait = wait_time
                 # libraries already access whatever is inside epsilon, result is a dict
                 
         else:
@@ -2208,7 +2280,7 @@ class EPS:
         def built_in_functions(left, main, right, method):
             global m, r, t, json, sys
             libs = False
-            try:
+            if True:
                 if main.startswith('num(') and main.endswith(')'):
                     self.handle_num_function(left, main)
                     return
@@ -2529,22 +2601,30 @@ class EPS:
                         self.variables[left] = self.eval(item_now, {}, self.variables)
                     return
                 elif self.library and "." in right:
+                    # checks if it's floating point number
+                    flt_check = right.split(".", 1)
+                    d1 = flt_check[0]
+                    d2 = flt_check[1]
+                    if d1.strip().isdigit() and d2.strip().isdigit():
+                        self.variables[left] = self.eval(main, {}, self.variables)
+                        return
+                    
                     if any(instruction.strip().startswith(self.library_name[l] + ".") and l in self.library for l in self.nplibs.keys()):
                         struct = instruction.split(".", 1)
                         key = self.name_library[struct[0]]
                         module = self.nplibs[key]
                         lib = module(**self.__dict__)
-                        result = lib.process(instruction, variant="ol")
+                        result = lib.process(instruction, self.variables, variant="ol")
                         if result == [] or result is None:
                             return
                         if len(result) >= 1:
                             self.variables = result[0]
                             return
                     lib = libraries(**self.__dict__)
-                    result = lib.process((left, right), t, m, r, json, sys, variant="av")
-                    if result == [] or result is None:
+                    result = lib.process((left, right), self.variables, t, m, r, json, sys, variant="av")
+                    if result[0] is None or isinstance(result[0], dict) and result[0] == {}:
                         pass
-                    if len(result) >= 1:
+                    else:
                         self.variables = result[0]
                         return
                 if not libs:
@@ -2553,20 +2633,21 @@ class EPS:
                     """
                     main = main.replace('++', '<<').replace('--', '>>')
                     self.variables[left] = self.eval(main, {}, self.variables)
-            except Exception as e:
-                if isinstance(e, ZeroDivisionError):
-                    self.error(4)
-                    return None
-                if isinstance(e, MemoryError):
-                    self.error(7)
-                    return
-                self.error(6, right)
-                return None
+#            except Exception as e:
+#                if isinstance(e, ZeroDivisionError):
+#                    self.error(4)
+#                    return None
+#                if isinstance(e, MemoryError):
+#                    self.error(7)
+#                    return
+#                self.error(6, right)
+#                return None
         if not run_method and not pre_run:
             built_in_functions(left, main, right, ismethod)
         else:
             if ismethod:
                 self.methods(left, right)
+                return
         # class vars
         if any(left in self.classes[vs]["variables"].keys() for vs in self.classes.keys()) and self.in_class[1]:
             self.classes[self.in_class[0]]["variables"][left] = self.variables[left]
@@ -2707,7 +2788,7 @@ class EPS:
                                 arg.append(len(self.variables[name]))
                             arg.append(1)
                         if arg[0] == ":" and arg[1] != ":":
-                            value = self.variables[::int(arg[1])]
+                            value = self.variables[name][::int(arg[1])]
                         elif arg[0] != ":" and arg[1] == ":":
                             value = self.variables[name][int(arg[0])::int(arg[2])]
                         else:
@@ -2820,8 +2901,8 @@ class EPS:
         if not content:
             return ""
         # Handle output of string literals, variables, and expressions    
-        if instruction.startswith('call '):
-            arg = main[5:-1].split('(', 1)
+        if content.startswith('call '):
+            arg = content[5:-1].split('(', 1)
             name = arg[0]
             polymorph = False
             isclass = False
@@ -2836,7 +2917,7 @@ class EPS:
                     name = self.eval(name[0], {}, self.variables) + "." + name[1]
                 except Exception:
                     name = arg[0]
-            if any(name == a for a in list(self.class_callers.keys())) or name.startswith(self.special) and self.in_class[0] or any(name.startswith(a) for a in list(self.classes.keys())):
+            if any(name == a for a in list(self.class_callers.keys())) or any(name.startswith(a) for a in list(self.classes.keys())) or self.in_class[1] and content in self.special[self.in_class[0]]["variables"].keys():
                 name = name.strip().rsplit(".", 1)
                 m_name = name[1]
                 self.traceback[m_name] = self.og_c
@@ -2938,6 +3019,70 @@ class EPS:
                 self.error(46, content)
                 return
 
+    def run_injected_method(self, name, **dynamic_args):
+        """
+        Runs a method a library has registered for injection into epsilon's own
+        execution lifecycle (e.g. debug's screen clear / interface renderer),
+        rather than the normal instruction-triggered dispatch path.
+        Builds a fresh library instance so it reflects current live state (same
+        pattern as ordinary library calls), looks up the registered method and
+        its declared extra argument names, and calls it.
+        """
+        lib = libraries(**self.__dict__)
+        injections = lib.get_injections()
+        if name not in injections:
+            return None
+        entry = injections[name]
+        method = entry["method"]
+        call_args = {a: dynamic_args[a] for a in entry["args"] if a in dynamic_args}
+        return method(**call_args)
+    
+    def parse_delete_target(self, arg):
+        """
+        Parses a delete target like arrays[0][1]["key"] into a base variable
+        name and an ordered list of raw (unevaluated) accessor expressions,
+        e.g. ("arrays", ["0", "1", '"key"']). Returns (base, []) if there are
+        no brackets at all (a plain name).
+        """
+        arg = arg.strip()
+        if "[" not in arg:
+            return arg, []
+        base, rest = arg.split("[", 1)
+        rest = "[" + rest
+        accessors = []
+        depth = 0
+        current = ""
+        in_string = None
+        i = 0
+        while i < len(rest):
+            ch = rest[i]
+            if in_string:
+                current += ch
+                if ch == in_string:
+                    in_string = None
+                i += 1
+                continue
+            if ch in ("'", '"'):
+                in_string = ch
+                current += ch
+                i += 1
+                continue
+            if ch == "[":
+                depth += 1
+                if depth == 1:
+                    current = ""  # start fresh, don't include the opening bracket
+                    i += 1
+                    continue
+            if ch == "]":
+                depth -= 1
+                if depth == 0:
+                    accessors.append(current)
+                    current = ""
+                    i += 1
+                    continue
+            current += ch
+            i += 1
+        return base.strip(), accessors
 # This comment right here is only used to copy, i uncomment the lines and copy them to place somewhere in the code later
 
 #if not self.attempt:

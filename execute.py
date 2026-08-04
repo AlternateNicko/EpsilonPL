@@ -1,8 +1,15 @@
-from EpsilonPL.epsilon import EPS
-from EpsilonPL.edebug import debug
+import sys
+# Note: Before running, rename the directory for the language's folder to EpsilonPL if already not
+sys.path.append("EpsilonPL")
+
+from epsilon import EPS
+from edebug import debug
 import time
 
 instructions = """
+import random
+
+var = random.randint(1, 100)
 """
 
 module = {}

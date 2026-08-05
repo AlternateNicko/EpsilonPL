@@ -210,6 +210,7 @@ class EPS:
         self.objects = {} # for defined variables using class objects
         self.constants = {} # assign variable names if they are constant or not, becomes False if they are assigned
         self.return_cache = {} # return cache
+        self._token_lookup_cache = {}  # caches ultimate_split's first-char buckets, keyed by the token list used
         self.Errors = { # all of the errors that will show up, if one of this is True, the whole code is stop and prints a trace back where the error originated,
             'SyntaxError': False,
             'IndexError': False,
@@ -437,7 +438,8 @@ class EPS:
         expression = {"expr": None, "iseval": iseval, "variables": {}, "const": copy.deepcopy(self.constants)}
         variables = {}
         # example: cnt == length(list), should return cnt == 60 (cnt is non constant, list is)
-        if any(v in exp for v in self.variables.keys()): # checks if variables are inside the expression
+        identifiers = self._extract_identifiers(exp)
+        if any(v in identifiers for v in self.variables.keys()):
             # uses the same technique as eval, split the expressions
             operators = ["+", "-", "**", "*", "%", "/", "<=", ">=", "<", ">", "==", "!="]
             final_exp = []
@@ -914,25 +916,58 @@ class EPS:
         errors = handle(**self.__dict__)
         self.Errors = errors.stderr(code, arg1, arg2, arg3)
         return
+    
+    def _extract_identifiers(self, exp):
+        """
+        Returns the set of real identifier tokens in exp, ignoring anything
+        inside string literals. Used to correctly detect whether an expression
+        actually references a variable, rather than naive substring matching
+        (which would wrongly match a variable named "e" against the letter "e"
+        sitting inside an unrelated string literal like "hello world").
+        """
+        without_strings = re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', '', exp)
+        return set(re.findall(r'\b[A-Za-z_][A-Za-z0-9_]*\b', without_strings))
         
+    def _build_token_lookup(self, split_tokens):
+        """
+        Buckets split_tokens by their first character, sorted longest-first
+        within each bucket so multi-char operators (**, <=, ==) get checked
+        before their single-char prefixes (*, <, =). Cached per unique token
+        list since eval()/run_condition() call ultimate_split() repeatedly
+        with the same fixed operator lists.
+        """
+        key = tuple(split_tokens)
+        if key in self._token_lookup_cache:
+            return self._token_lookup_cache[key]
+        lookup = {}
+        for token in split_tokens:
+            lookup.setdefault(token[0], []).append(token)
+        for first_char in lookup:
+            lookup[first_char].sort(key=len, reverse=True)
+        self._token_lookup_cache[key] = lookup
+        return lookup
+    
     def ultimate_split(self, line, split_tokens, group_pairs=(("'", '"'), ('"', "'")), nest_pairs=(("(", ")"), ("[", "]"), ("{", "}")), join_capture=True):
         """
         Splits 'line' by any of the split_tokens, ignoring tokens inside strings or nested groups.
-        
+    
         - split_tokens: list of strings to split by (can be multi-char)
         - group_pairs: string quote pairs
         - nest_pairs: parentheses/brackets/braces pairs
-        
+    
+        Uses a first-character lookup (see _build_token_lookup) so each
+        character only gets checked against tokens that could possibly match
+        it, instead of looping through every token at every position.
         """
+        token_lookup = self._build_token_lookup(split_tokens)
         result = []
         current = ""
-        stack = []  # stack for parentheses/brackets/braces
-        in_string = None  # current quote character if inside a string
+        stack = []
+        in_string = None
         i = 0
         while i < len(line):
             char = line[i]
     
-            # String handling
             if in_string:
                 current += char
                 if char == in_string:
@@ -944,8 +979,6 @@ class EPS:
                 current += char
                 i += 1
                 continue
-    
-            # Nesting handling
             elif any(char == start for start, end in nest_pairs):
                 stack.append(next(end for start, end in nest_pairs if start == char))
                 current += char
@@ -957,29 +990,28 @@ class EPS:
                 i += 1
                 continue
     
-            # Split token check (multi-char)
             split_matched = False
-            for token in split_tokens:
-                if line[i:i+len(token)] == token and not stack and not in_string:
-                    if current:
-                        result.append(current.strip())
-                    if join_capture:
-                        
-                        result.append(token)
-                    current = ""
-                    i += len(token)
-                    split_matched = True
-                    break
+            if not stack and not in_string and char in token_lookup:
+                for token in token_lookup[char]:
+                    if line[i:i+len(token)] == token:
+                        if current:
+                            result.append(current.strip())
+                        if join_capture:
+                            result.append(token)
+                        current = ""
+                        i += len(token)
+                        split_matched = True
+                        break
             if split_matched:
                 continue
     
-            # Normal character
             current += char
             i += 1
     
         if current:
             result.append(current.strip())
         return result
+        
     def special_split(self, line, split_str, in_char1, in_char2, ret_capture_group=False, limit=None, ranges=[0, -1]):
         """
     splits a string into a list by using split()
@@ -1039,39 +1071,45 @@ class EPS:
         if "¤" in new_line:
             return new_line.split("¤")
         return [new_line]
+    
     def special_find(self, line, target, in_char1, in_char2, ranges=[0, -1]):
         """
         This function works like special_split, but it returns True or False if target_str is in the string
         only if it exist, and is not inside the chosen characters (in_chars1 for the start and in_chars2 for the end)
         it has the same method as special_split, just a different purpose
-        
+    
         this function fixes the bug in self.eval() about running a built in method inside as an argument of an built in function (or even user defined)
         """
         start, end = ranges
-        end = len(line) if end == -1 else end + 1
-        line = line[start:end]
+        if not (start == 0 and end == -1):
+            end = len(line) if end == -1 else end + 1
+            line = line[start:end]
         inside_char = False
         i = 0
         if not isinstance(target, list):
             target = [target]
+        target_lookup = self._build_token_lookup(target)
     
         while i < len(line):
+            char = line[i]
+    
             # Enter quoted section
-            if line[i] in in_char1 and not inside_char:
-                inside_char = line[i]
+            if char in in_char1 and not inside_char:
+                inside_char = char
                 i += 1
                 continue
     
             # Exit quoted section
-            elif line[i] in in_char2 and inside_char:
+            elif char in in_char2 and inside_char:
                 inside_char = False
                 i += 1
                 continue
     
-            # Check for target only when outside quotes, even multiple
-            # if not inside_char and line[i:i+len(target)] == target:
-            if not inside_char and any(line[i:i+len(t)] == t for t in target):
-                return True
+            # Only check tokens that could possibly start with this character
+            if not inside_char and char in target_lookup:
+                for t in target_lookup[char]:
+                    if line[i:i+len(t)] == t:
+                        return True
     
             i += 1
     
@@ -1599,7 +1637,7 @@ class EPS:
                     object_name = name[0].strip()
                     name = self.eval(name[0], {}, self.variables) + "." + name[1]
                 except Exception:
-                    name = arg[0]    
+                    name = arg[0]
             if any(name == a for a in list(self.class_callers.keys())) or any(name.startswith(a) for a in list(self.classes.keys())):
                 name = name.strip().split(".")
                 m_name = name[1]
@@ -1610,6 +1648,9 @@ class EPS:
                                 name = self.class_callers[i]
                     else: name = self.class_callers[name[0]]
                 else: name = name[0]
+                if self.classes[name]["methods"][m_name].get("type") == "priv":
+                    self.error(71, m_name, name)
+                    return
                 args = self.special_split(arg[1], ",", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}"))
                 args = [self.convert_arg(arg.strip()) for arg in args]
                 og = self.variables
@@ -2065,8 +2106,7 @@ class EPS:
                     b, count, eogc2 = self.get_block()
                     self.classes[insts]["methods"][func_name] = {'block': b, 'args': func_arg, 'end': count, 'start': start, "ogc": ogc2, "end ogc": eogc2, "type": "pub" if block[self.cnt].strip().startswith("public") else "priv"}
                     self.classes[insts]["variables"]["<attr>"].append(func_name)
-                    if block[self.cnt].startswith("public"): # static functions
-                        self.special[insts]["methods"][func_name] = True
+                    self.special[insts]["methods"][func_name] = True
                     
                     self.cnt = count - 1
                     self.og_c = eogc - 1
@@ -2263,18 +2303,9 @@ class EPS:
         if left not in self.variables.keys():
             self.constants[left] = [True, None]
         pre_run = False
-        # runs self.eval if contains arithmetic
+        # runs self.eval if it includes arithmetics
         if not self.evals and any(operator in main for operator in ["+", "-", "/", "*", "**", "//", "%"]):
-            istrue = [
-                self.special_find(main, "+", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "-", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "*", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "/", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "**", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "//", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-                self.special_find(main, "%", ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")),
-            ]
-            if True in istrue:
+            if self.special_find(main, ["+", "-", "*", "/", "%"], ('"', "'", "(", "[", "{"), ('"', "'", ")", "]", "}")):
                 self.variables[left] = self.eval(main, {}, self.variables)
                 pre_run = True
         def built_in_functions(left, main, right, method):
@@ -2383,6 +2414,9 @@ class EPS:
                                         name = self.class_callers[i]
                             else: name = self.class_callers[name[0]]
                         else: name = self.in_class[0]
+                        if self.classes[name]["methods"][m_name].get("type") == "priv":
+                            self.error(71, m_name, name)
+                            return
                         args = self.special_split(arg[1], ",", ("'", '"', "(", "[", "{"), ("'", '"', ")", "]", "}"))
                         args = [self.convert_arg(arg.strip()) for arg in args]
                         self.classes[name]["methods"][m_name]["end"] = self.cnt 
@@ -2928,6 +2962,9 @@ class EPS:
                                 name = self.class_callers[i]
                     else: name = self.class_callers[name[0]]
                 else: name = self.in_class[0]
+                if self.classes[name]["methods"][m_name].get("type") == "priv":
+                    self.error(71, m_name, name)
+                    return
                 args = arg[1].split(',')
                 args = [self.convert_arg(arg.strip()) for arg in args]
                 self.classes[name]["methods"][m_name]["end"] = self.cnt 

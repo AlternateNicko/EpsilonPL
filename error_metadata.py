@@ -290,6 +290,10 @@ code = {
         "error": "ValueError"
     },
     # Newly added, 70 and above
+    71: {
+        "response": "AccessError: Method `{arg1}` in class `{arg2}` is private and cannot be called from outside the class",
+        "error": "AccessError"
+    }
 }
 
 with open("errormd.json", "w") as file:

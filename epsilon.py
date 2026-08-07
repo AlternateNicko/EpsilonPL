@@ -177,8 +177,8 @@ class EPS:
         self.condition = False # for the if, else if statement, turns true once their condition is also true
         self.attempt = False # for try-except, but in this language is attempt-catch, once attempting to execute a code, all errors wont print out a trace back, instead it gets catch if it matches with the error name of the catch block
         self.in_class = [None, False, None] # if the program is currently in a code, first index stores the name of the class, the second shows True if they are in a class, third is what class objecf it is (None if it's inside a class) else False
-        self.original_var = None # original variable once calling a new function, the self.variables are replace with a new dictionary, and original_var stores the global variables
         self.breaking = False # force break out loops
+        self.continuing = False # continues
         self.evals = False # if it's currently evaluating something
         self.is_return = False # for return
         self.eval_deb = False # for debug
@@ -201,6 +201,7 @@ class EPS:
         self.func_scope = {} # contains the variables and other user defined values like functions and classes
         self.special = {} # for OOP, protected/static variables or attributes
         self.public = {} # public variables, this is permanentaly stored unless "private" intercepts it
+        self.original_var = [] # original variable once calling a new function, the self.variables are replace with a new dictionary, and original_var stores the global variables
         self.cache = {
             "eval": {}, # for evaluation (v1.0.3)
             "func": {}, # function cache (v1.0.5)
@@ -222,6 +223,9 @@ class EPS:
             'MemoryError': False,
             'ValueError': False,
             'ModuleError': False,
+            "AccessError": False,
+            "LocalBoundError": False,
+            
             'QuitError': False
         }
         
@@ -546,9 +550,9 @@ class EPS:
         ogc = self.og_c
         original = self.Instructions
         was_in = True if self.in_func else False
+        ogif = self.in_if
         self.Instructions = code.split("\n")
         while self.cnt < len(self.Instructions):
-            
             # Check for errors
             if True in self.Errors.values() and not self.attempt:
                 return
@@ -567,9 +571,12 @@ class EPS:
                 self.render_debug_interface(instruction)
             self.cnt += 1
             self.og_c += 1
+            if self.breaking or self.continuing:
+                break
             if self.in_func == 0 and was_in or self.is_return:
                 break
         self.cnt = count
+        self.in_if = ogif
         self.og_c = ogc
         self.Instructions = original
         return
@@ -803,16 +810,21 @@ class EPS:
             return args[1:-1]
         try:
             return self.eval(args, {}, self.variables)
+        except NameError:
+            # a genuinely undefined variable should surface loudly, not get
+            # silently substituted as if the raw text were valid data
+            self.error(18, args)
+            return None
         except Exception:
             return args
             
     def global_vars(self):
         globals = []
-        for g, l in zip(self.variables.keys(), self.original_var.keys()):
+        for g, l in zip(self.variables.keys(), self.original_var[-1].keys()):
             if g == l:
                 globals.append(g)
         for i in globals:
-            self.original_var[i] = self.variables[i]
+            self.original_var[-1][i] = self.variables[i]
     
     def types(self, value, mode="p"):
         if mode == "p":
@@ -1158,7 +1170,7 @@ class EPS:
         if '' in arg:
             del arg[0]
         self.traceback[name] = self.og_c
-        self.original_var = self.variables
+        self.original_var.append(self.variables.copy())
         self.variables = {}
         
         og_cache = self.cache
@@ -1181,7 +1193,7 @@ class EPS:
         code = self.prep_exec(block)
         self.exec_block(code, count)
         self.global_vars()
-        self.variables = self.original_var
+        self.variables = self.original_var.pop()
         self.variables.update(self.public)
         self.in_func -= 1
         if infunc:
@@ -1191,7 +1203,6 @@ class EPS:
                 self.func_scope[self.og_fname]["variables"] = self.variables.copy()
         self.func_name = og_name
         self.og_fname = past_name
-        self.original_var = {}
         self.Instructions = original_inst
         self.cache = og_cache
         self.cnt = count
@@ -1220,7 +1231,7 @@ class EPS:
         if len(argument) > len(arg):
             self.error(13, m_name, len(arg), len(argument))
         self.traceback[m_name] = self.og_c
-        self.original_var = self.variables.copy()
+        self.original_var.append(self.variables.copy())
         og_var = self.variables.copy()
         self.variables = {}
         if object:
@@ -1261,7 +1272,7 @@ class EPS:
         code = self.prep_exec(block)
         self.exec_block(code, count)
         if self.in_func == 0:
-            self.variables = self.original_var
+            self.variables = self.original_var.pop()
             self.variables.update(og_var)
             self.Instructions = original_inst
             self.cnt = count
@@ -1270,12 +1281,11 @@ class EPS:
         self.og_fname = past_name
         self.global_vars()
         
-        self.variables = self.original_var.copy()
+        self.variables = self.original_var.pop()
         self.variables.update(og_var)
         self.in_func -= 1
         if self.in_func <= 0:
             self.in_class = [None, False, None]
-        self.original_var = {}
         self.Instructions = original_inst
         self.cache = og_cache
         self.cnt = count
@@ -1332,7 +1342,11 @@ class EPS:
         elif instruction.startswith('//'): pass # programming language's comment syntax
         
         elif instruction.startswith('output'):
-            return self.handle_output(instruction) # stdout
+            stdout = self.handle_output(instruction)
+            
+            if "\\" in str(stdout): # processes backslashes
+                stdout = stdout.encode().decode("unicode_escape")
+            return stdout
             
         elif instruction.startswith(('{', '}')): pass # because it may be a peice of a code block
                     
@@ -1408,11 +1422,11 @@ class EPS:
             return
             
         elif instruction.startswith('continue'):
-            # continues a loop back to the start
             if self.exec_fl <= 0:
                 self.error(20)
                 return None
-            self.cnt = 0
+            self.continuing = True
+            return
             
         elif instruction.startswith('while'):
             # like a while loop
@@ -1449,10 +1463,10 @@ class EPS:
         elif instruction.startswith('global') and self.in_func:
             # makes variables global
             arg = instruction[7:].strip()
-            if arg not in self.original_var:
+            if arg not in self.original_var[-1]:
                 self.error(21, arg)
                 return None
-            self.variables[arg] = self.original_var[arg]
+            self.variables[arg] = self.original_var[-1][arg]
             
         elif instruction.startswith('if'):
             # an if statement
@@ -1500,15 +1514,15 @@ class EPS:
                     count += 1
                     eogc += 1
                     if count >= len(self.Instructions): break
-                    if self.Instructions[count].strip().startswith('{'):
+                    if self.Instructions[count].strip().startswith('{') or self.Instructions[count].strip().endswith('{'):
                         self.in_block += 1
-                    if self.Instructions[count].strip().startswith('}') and self.in_block:
+                    if self.Instructions[count].strip().startswith('}') and self.in_block > 0 or self.Instructions[count].strip().endswith('}') and self.in_block > 0:
                         self.in_block -= 1
                         if self.in_block == 0:
                             self.in_block = False
                     if self.Instructions[count].strip() == "":
                         continue
-                    if self.Instructions[count].strip().startswith('else'):
+                    if self.Instructions[count].strip().startswith('else') and self.in_block == 0:
                         break
                     if not self.Instructions[count].strip().startswith(('{', '}', 'else')) and not self.in_block:
                         self.in_block, self.condition = False, False
@@ -1543,9 +1557,9 @@ class EPS:
                             count += 1
                             eogc += 1
                             if count >= len(self.Instructions): break
-                            if self.Instructions[count].strip().startswith('{'):
+                            if self.Instructions[count].strip().startswith('{') or self.Instructions[count].strip().endswith('{'):
                                 self.in_block += 1
-                            elif self.Instructions[count].strip().startswith('}') and self.in_block:
+                            elif self.Instructions[count].strip().startswith('}') and self.in_block > 0 or self.Instructions[count].strip().endswith('}') and self.in_block > 0:
                                 self.in_block -= 1
                             elif self.Instructions[count].strip() == "":
                                 continue
@@ -1563,9 +1577,9 @@ class EPS:
                             count += 1
                             eogc += 1
                             if count >= len(self.Instructions): break
-                            if self.Instructions[count].strip().startswith('{'):
+                            if self.Instructions[count].strip().startswith('{') or self.Instructions[count].strip().endswith('{'):
                                 self.in_block += 1
-                            elif self.Instructions[count].strip().startswith('}') and self.in_block:
+                            elif self.Instructions[count].strip().startswith('}') and self.in_block > 0 or self.Instructions[count].strip().endswith('}') and self.in_block > 0:
                                 self.in_block -= 1
                             elif self.Instructions[count].strip() == "":
                                 continue
@@ -1736,9 +1750,13 @@ class EPS:
                 ogc = self.og_c
                 arg = instruction[5:-1] if instruction.endswith('{') else instruction[5:] # ternary conditions :)
                 arg = arg.rstrip("{").strip()
-                arg = arg[:-1].split('(', 1) # removes the starting parenthensis and ending
+                arg = arg[:-1].split('(', 1)
                 name = arg[0]
-                func_arg = arg[1].split(',')
+                func_arg = [a.strip() for a in arg[1].split(',')]
+                for a in func_arg:
+                    if a and any(ch in a for ch in self.forbiden_chars):
+                        self.error(72, a, name)  # new error code, see below
+                        return
                 block, count, eogc = self.get_block()
                 if type == "pub":
                     self.functions[name] = {'block': block, 'args': func_arg, 'end': count, 'start': start, 'ogc': ogc, 'end ogc': eogc}
@@ -2983,7 +3001,7 @@ class EPS:
                 self.run_functions(name, a, False)
                 if self.is_return:
                     
-                    for val, in self.return_val:
+                    for val in self.return_val:
                         v += val + " "
                     self.is_return = False
             elif self.in_func:
@@ -2998,7 +3016,7 @@ class EPS:
                     self.traceback[name] = self.og_c
                     self.run_functions(name, a, True)
                     if self.is_return:
-                        for val in zip(self.return_val):
+                        for val in self.return_val:
                             v += val + " "
                         self.is_return = False
                     self.cnt = ending

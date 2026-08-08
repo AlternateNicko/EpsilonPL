@@ -32,7 +32,6 @@ The followings are:
 
 Epsilon's source code is written in Python
 
-
 ___
 # Syntax
 ___
@@ -123,7 +122,6 @@ this is the construction class, or the initializer, this is where class instance
 ```python
 class Child_class(Parent_class1, Parentclass2, ...)
 ```
-
 ___
 # Libraries
 ___
